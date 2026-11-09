@@ -14,8 +14,10 @@ jobs:
   restore:
     if: ${{ inputs.confirm == 'RESTORE' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Install PostgreSQL 17 client
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-common
@@ -23,6 +25,7 @@ jobs:
           sudo apt-get install -y postgresql-client-17
 
       - name: Download backup from B2
+        timeout-minutes: 10
         env:
           B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
@@ -42,6 +45,7 @@ jobs:
           ls -lh backup.dump
 
       - name: Restore database
+        timeout-minutes: 30
         env:
           RESTORE_DB_URL: ${{ secrets.SUPABASE_RESTORE_DB_URL }}
         run: |
@@ -49,4 +53,5 @@ jobs:
             --no-owner --no-privileges \
             --clean --if-exists \
             --schema=public \
+            --verbose -j 4 \
             -d "$RESTORE_DB_URL" backup.dump
