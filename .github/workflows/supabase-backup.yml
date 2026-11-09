@@ -30,7 +30,6 @@ jobs:
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
           B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
           B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
-          AWS_DEFAULT_REGION: us-west-004   # غيّرها حسب منطقتك
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
@@ -38,6 +37,10 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$(printf '%s' "$B2_APPLICATION_KEY" | tr -d '[:space:]')"
           BUCKET="$(printf '%s' "$B2_BUCKET_NAME" | tr -d '[:space:]')"
           ENDPOINT="$(printf '%s' "$B2_ENDPOINT" | tr -d '[:space:]')"
+
+          # استخراج المنطقة تلقائياً من الـ Endpoint
+          export AWS_DEFAULT_REGION="$(echo "$ENDPOINT" | sed -E 's#https?://s3\.([^.]+)\.backblazeb2\.com.*#\1#')"
+          echo "Region: $AWS_DEFAULT_REGION"
 
           aws s3 cp backup.dump \
             "s3://${BUCKET}/backup-$(date +%Y-%m-%d-%H%M).dump" \
