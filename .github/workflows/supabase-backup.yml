@@ -1,39 +1,33 @@
-name: Supabase Backup to Backblaze B2
+name: Supabase Backup
 
 on:
   schedule:
-    - cron: '0 0 * * *' # يعمل تلقائياً كل يوم الساعة 12 ليلاً بتوقيت UTC
-  workflow_dispatch: # يتيح لك تشغيل النسخ الاحتياطي يدوياً في أي وقت بضغطة زر
+    - cron: '0 2 * * *'   # كل يوم 2 الصبح UTC
+  workflow_dispatch:       # لتشغيله يدوي للتجربة
 
 jobs:
   backup:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
 
-    - name: Install PostgreSQL Client
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y postgresql-client
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges -F c -f backup.dump
 
-    - name: Run pg_dump
-      run: |
-        pg_dump "${{ secrets.SUPABASE_DB_URL }}" -F c -b -v -f backup.dump --host=://supabase.com -p 6543
-
-    - name: Install AWS CLI (for B2 S3-compatible API)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y awscli
-
-    - name: Configure AWS CLI for Backblaze B2
-      run: |
-        aws configure set aws_access_key_id ${{ secrets.B2_KEY_ID }}
-        aws configure set aws_secret_access_key ${{ secrets.B2_APPLICATION_KEY }}
-        aws configure set default.region us-east-1
-
-    - name: Upload Backup to Backblaze B2
-      run: |
-        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-        aws s3 cp backup.dump s3://${{ secrets.B2_BUCKET_NAME }}/supabase_backup_$TIMESTAMP.dump --endpoint-url https://${{ secrets.B2_ENDPOINT }}
+      - name: Upload to Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: us-west-004   # غيّرها حسب منطقتك
+        run: |
+          aws s3 cp backup.dump \
+            "s3://${{ secrets.B2_BUCKET_NAME }}/backup-$(date +%Y-%m-%d-%H%M).dump" \
+            --endpoint-url "${{ secrets.B2_ENDPOINT }}"
