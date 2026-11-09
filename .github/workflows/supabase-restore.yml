@@ -1,0 +1,37 @@
+name: Supabase Restore from Backblaze B2
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_filename:
+        description: 'اكتب اسم ملف الـ dump المراد استرجاعه بدقة من Backblaze'
+        required: true
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install PostgreSQL Client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Install AWS CLI
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y awscli
+
+    - name: Configure AWS CLI for Backblaze B2
+      run: |
+        aws configure set aws_access_key_id ${{ secrets.B2_KEY_ID }}
+        aws configure set aws_secret_access_key ${{ secrets.B2_APPLICATION_KEY }}
+        aws configure set default.region us-east-1
+
+    - name: Download Backup File from Backblaze B2
+      run: |
+        aws s3 cp s3://${{ secrets.B2_BUCKET_NAME }}/${{ github.event.inputs.backup_filename }} backup.dump --endpoint-url https://${{ secrets.B2_ENDPOINT }}
+
+    - name: Run pg_restore to Supabase
+      run: |
+        pg_restore --clean --no-owner --no-privileges -d "${{ secrets.SUPABASE_DB_URL }}" backup.dump
