@@ -20,7 +20,7 @@ jobs:
 
     - name: Run pg_dump
       run: |
-        pg_dump "${{ secrets.SUPABASE_DB_URL }}" -F c -b -v -f backup.dump
+        pg_dump "${{ secrets.SUPABASE_DB_URL }}" -F c -b -v -f backup.dump --host=://supabase.com -p 6543
 
     - name: Install AWS CLI (for B2 S3-compatible API)
       run: |
