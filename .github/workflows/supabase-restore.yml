@@ -3,8 +3,8 @@ name: Supabase Restore from Backblaze B2
 on:
   workflow_dispatch:
     inputs:
-      backup_filename:
-        description: 'اكتب اسم ملف الـ dump المراد استرجاعه بدقة من Backblaze'
+      backup_date:
+        description: 'اكتب التاريخ الذي تريد العودة إليه بصيغة YYYYMMDD (مثال: 20261109)'
         required: true
 
 jobs:
@@ -28,9 +28,18 @@ jobs:
         aws configure set aws_secret_access_key ${{ secrets.B2_APPLICATION_KEY }}
         aws configure set default.region us-east-1
 
-    - name: Download Backup File from Backblaze B2
+    - name: Find and Download Backup File by Date
       run: |
-        aws s3 cp s3://${{ secrets.B2_BUCKET_NAME }}/${{ github.event.inputs.backup_filename }} backup.dump --endpoint-url https://${{ secrets.B2_ENDPOINT }}
+        # البحث عن الملف الذي يحتوي على التاريخ المدخل داخل الحاوية
+        FILENAME=$(aws s3 ls s3://${{ secrets.B2_BUCKET_NAME }} --endpoint-url https://${{ secrets.B2_ENDPOINT }} | grep "${{ github.event.inputs.backup_date }}" | awk '{print $4}' | head -n 1)
+        
+        if [ -z "$FILENAME" ]; then
+          echo "خطأ: لم يتم العثور على أي ملف نسخة احتياطية لهذا التاريخ في حساب Backblaze!"
+          exit 1
+        fi
+        
+        echo "تم العثور على الملف: $FILENAME"
+        aws s3 cp s3://${{ secrets.B2_BUCKET_NAME }}/$FILENAME backup.dump --endpoint-url https://${{ secrets.B2_ENDPOINT }}
 
     - name: Run pg_restore to Supabase
       run: |
