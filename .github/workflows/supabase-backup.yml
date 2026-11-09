@@ -2,8 +2,8 @@ name: Supabase Backup to Backblaze B2
 
 on:
   schedule:
-    - cron: '0 0 * * *' # يعمل تلقائياً كل يوم
-  workflow_dispatch: # تشغيل يدوياً
+    - cron: '0 0 * * *' # يعمل تلقائياً كل يوم الساعة 12 ليلاً بتوقيت UTC
+  workflow_dispatch: # يتيح لك تشغيل النسخ الاحتياطي يدوياً في أي وقت بضغطة زر
 
 jobs:
   backup:
@@ -19,10 +19,8 @@ jobs:
         sudo apt-get install -y postgresql-client
 
     - name: Run pg_dump
-      env:
-        SUB_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       run: |
-        pg_dump "$SUB_DB_URL" -F c -b -v -f backup.dump
+        pg_dump "${{ secrets.SUPABASE_DB_URL }}" -F c -b -v -f backup.dump
 
     - name: Install AWS CLI (for B2 S3-compatible API)
       run: |
