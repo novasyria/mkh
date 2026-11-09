@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install PostgreSQL Client
+    - name: Install PostgreSQL Client and Unzip
       run: |
         sudo apt-get update
-        sudo apt-get install -y postgresql-client
+        sudo apt-get install -y postgresql-client unzip
 
     - name: Install AWS CLI Official
       run: |
@@ -44,4 +44,3 @@ jobs:
     - name: Run pg_restore to Supabase
       run: |
         pg_restore --clean --no-owner --no-privileges -d "${{ secrets.SUPABASE_DB_URL }}" backup.dump
-        
