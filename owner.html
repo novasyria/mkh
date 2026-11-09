@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K Loyalty - لوحة إدارة المشروع</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+                                               
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { min-height: 100vh; background: #0b0b0b; color: white; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .owner-card { position: relative; width: 100%; max-width: 500px; background: #151515; border: 1px solid #d4af37; border-radius: 24px; padding: 30px 22px; text-align: center; box-shadow: 0 10px 40px rgba(212, 175, 55, 0.15); }
+        .logo { width: 65px; height: 65px; margin: 0 auto 18px; border-radius: 50%; background: #d4af37; color: #111; display: flex; justify-content: center; align-items: center; font-size: 26px; font-weight: bold; }
+        h1 { color: #d4af37; margin-bottom: 4px; }
+        .project-code-badge { background: #333; color: #d4af37; padding: 3px 10px; border-radius: 12px; font-size: 12px; display: inline-block; margin-bottom: 15px; }
+        .owner-logout { position: absolute; top: 16px; left: 16px; background: #333; color: white; border: 1px solid #444; border-radius: 8px; padding: 7px 11px; font-size: 12px; cursor: pointer; }
+        .subscription-details { text-align: right; background: #202020; border: 1px solid #333; border-radius: 14px; padding: 14px; margin-bottom: 20px; }
+        .subscription-details h2 { color: #d4af37; text-align: center; font-size: 16px; margin-bottom: 10px; }
+        .subscription-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #333; font-size: 13px; }
+        .subscription-row:last-child { border-bottom: 0; }
+        .subscription-row span:first-child { color: #999; }
+        .subscription-row span:last-child { color: #eee; font-weight: bold; }
+        
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 25px; }
+        .stat { background: #202020; border: 1px solid #333; border-radius: 14px; padding: 12px 5px; }
+        .stat strong { display: block; color: #d4af37; font-size: 20px; margin-bottom: 4px; }
+        .stat span { color: #999; font-size: 11px; }
+
+        .marketing-subscribers, .settings { text-align: right; background: #1b1b1b; border: 1px solid #333; border-radius: 18px; padding: 20px; margin-bottom: 25px; }
+        .marketing-subscribers { border-color: #28a745; }
+        .marketing-subscribers h2 { color: #28a745; text-align: center; margin-bottom: 15px; font-size: 18px; }
+        
+        .table-container { max-height: 220px; overflow-y: auto; border: 1px solid #333; border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; text-align: right; font-size: 13px; }
+        th, td { padding: 10px 8px; border-bottom: 1px solid #484747; }
+        th { background: #252525; color: #d4af37; position: sticky; top: 0; }
+        td { color: #ddd; }
+
+        .btn-add { background: #28a745; color: white; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        .badge-done { color: #76e39b; font-size: 12px; font-weight: bold; }
+        .badge-new { background: #d4af37; color: #111; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+
+        .btn-copy-phone { background: #444; color: white; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-right: 4px; }
+
+        .settings h2 { color: #d4af37; text-align: center; margin-bottom: 18px; font-size: 18px; }
+        .settings label { display: block; color: #ccc; margin-bottom: 6px; font-size: 13px; }
+        .settings input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #333; border-radius: 10px; background: #101010; color: white; font-size: 15px; outline: none; }
+        .settings input:focus { border-color: #d4af37; }
+
+        button.save-btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: #d4af37; color: #111; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button.save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        #saveMessage { text-align: center; margin-top: 10px; min-height: 20px; font-size: 13px; }
+    </style>
+</head>
+
+<body>
+    <main class="owner-card">
+        <button id="ownerLogoutButton" class="owner-logout" type="button">تسجيل خروج</button>
+        <div class="logo">K</div>
+        <h1 id="storeTitle">إدارة المشروع</h1>
+        <div class="project-code-badge" id="projectBadge">كود المشروع: -</div>
+
+        <section class="subscription-details" aria-label="بيانات الاشتراك">
+            <h2>بيانات الاشتراك</h2>
+            <div class="subscription-row"><span>نوع الاشتراك</span><span id="subscriptionTypeView">-</span></div>
+            <div class="subscription-row"><span>تاريخ البداية</span><span id="subscriptionStartView">-</span></div>
+            <div class="subscription-row"><span>تاريخ الانتهاء</span><span id="subscriptionEndView">-</span></div>
+            <div class="subscription-row"><span>المبلغ المدفوع</span><span id="subscriptionAmountView">-</span></div>
+        </section>
+
+        <section class="stats">
+            <div class="stat"><strong id="customersCount">0</strong><span>العملاء</span></div>
+            <div class="stat"><strong id="visitsCount">0</strong><span>الزيارات</span></div><div class="stat"><strong id="pointsCount">0</strong><span>النقاط</span></div>
+            <div class="stat" style="border-color: #28a745;"><strong id="offersCount" style="color: #28a745;">0</strong><span>العروض</span></div>
+        </section>
+
+        <section class="marketing-subscribers">
+            <h2>قائمة المشتركين بالعروض 📢</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>الهاتف</th>
+                            <th>الحالة</th>
+                            <th>الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subscribersTable">
+                        <tr><td colspan="4" style="text-align: center; color: #888;">جاري التحميل...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="settings">
+            <h2>إعدادات الولاء</h2>
+            <label>عدد النقاط لكل زيارة</label>
+            <input type="number" id="pointsPerVisit" min="1" value="10">
+
+            <label>عدد النقاط للحصول على المكافأة</label>
+            <input type="number" id="rewardPoints" min="1" value="100">
+
+            <label>اسم المكافأة</label>
+            <input type="text" id="rewardName" value="خصم 10%">
+
+            <label>مدة الدورة بالأيام (بيتصفر العداد بعدها)</label>
+            <input type="number" id="visitPeriodDays" min="1" value="30">
+
+            <label>عدد الزيارات المطلوبة للحصول على المكافأة</label>
+            <input type="number" id="visitTarget" min="1" value="4">
+
+            <button id="saveSettingsBtn" class="save-btn">حفظ الإعدادات</button>
+            <div id="saveMessage"></div>
+        </section>
+    </main>
+
+    <script>
+        const SUPABASE_URL = "https://ofylogxewabdiemaifep.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_UzOHSK-Jk_5KVVu0TEcFxQ_bOjlAgFQ";
+        const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+        const SAVED_DEST_KEY = "k_loyalty_saved_dest";
+
+        document.getElementById("ownerLogoutButton").addEventListener("click", function () {
+            localStorage.removeItem(SAVED_DEST_KEY);
+            window.location.href = "index.html";
+        });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentProjectCode = urlParams.get('project');
+
+        if (!currentProjectCode) {
+            alert("خطأ: لم يتم التعرف على كود المشروع في الرابط!");
+        } else {
+            document.getElementById("projectBadge").textContent = "كود المشروع: " + currentProjectCode;
+            document.getElementById("storeTitle").textContent = "إدارة المشروع (" + currentProjectCode + ")";
+        }
+
+        async function loadSettings() {
+            if (!currentProjectCode || !db) return;
+            try {
+                const { data, error } = await db.from("stores").select("*").eq("store_code", currentProjectCode).maybeSingle();
+                if (data) {
+                    document.getElementById("subscriptionTypeView").textContent = data.subscription_type || "شهري";
+                    document.getElementById("subscriptionStartView").textContent = formatSubscriptionDate(data.subscription_start);
+                    document.getElementById("subscriptionEndView").textContent = formatSubscriptionDate(data.subscription_end);
+                    document.getElementById("subscriptionAmountView").textContent =
+                        data.subscription_amount == null ? "-" : Number(data.subscription_amount).toLocaleString("ar");
+                    document.getElementById("pointsPerVisit").value = data.points_per_visit || 10;
+                    document.getElementById("rewardPoints").value = data.reward_points || 100;
+                    document.getElementById("rewardName").value = data.reward_name || "خصم 10%";
+                    document.getElementById("visitPeriodDays").value = data.visit_period_days || 30;
+                    document.getElementById("visitTarget").value = data.visit_target || 4;
+                    return;
+                }
+            } catch (e) {
+                console.error("خطأ جلب الإعدادات:", e);
+            }
+        }
+
+        function formatSubscriptionDate(value) {
+            if (!value) return "-";
+            const date = new Date(value + "T00:00:00");
+            return Number.isNaN(date.getTime())
+                ? "-"
+                : date.toLocaleDateString("ar", { calendar: "gregory" });
+        }
+
+        document.getElementById("saveSettingsBtn").onclick = async function () {
+            if (!currentProjectCode) return alert("كود المشروع مفقود!");
+
+            const saveBtn = this;
+            const msg = document.getElementById("saveMessage");
+            const pVisit = Number(document.getElementById("pointsPerVisit").value) || 10;
+            const rPoints = Number(document.getElementById("rewardPoints").value) || 100;
+            const rName = document.getElementById("rewardName").value.trim() || "خصم 10%";
+            const periodDays = Number(document.getElementById("visitPeriodDays").value) || 30;
+            const target = Number(document.getElementById("visitTarget").value) || 4;
+
+            saveBtn.disabled = true;
+            msg.style.color = "#d4af37";
+            msg.textContent = "جاري الحفظ بالسحابة...";
+
+            try {
+                const { data: store } = await db.from("stores").select("id").eq("store_code", currentProjectCode).maybeSingle();let error;
+                if (store) {
+                    const res = await db.from("stores").update({
+                        points_per_visit: pVisit,
+                        reward_points: rPoints,
+                        reward_name: rName,
+                        visit_period_days: periodDays,
+                        visit_target: target
+                    }).eq("store_code", currentProjectCode);
+                    error = res.error;
+                } else {
+                    const res = await db.from("stores").insert({
+                        store_code: currentProjectCode,
+                        points_per_visit: pVisit,
+                        reward_points: rPoints,
+                        reward_name: rName,
+                        visit_period_days: periodDays,
+                        visit_target: target
+                    });
+                    error = res.error;
+                }
+
+                if (error) throw error;
+
+                msg.style.color = "#76e39b";
+                msg.textContent = "تم حفظ الإعدادات بنجاح وتحديث الكاشير ✅";
+            } catch (err) {
+                console.error("Save Error:", err);
+                msg.style.color = "#ff7777";
+                msg.textContent = "خطأ بالحفظ! تحقق من الاتصال بالحساب.";
+            } finally {
+                saveBtn.disabled = false;
+                setTimeout(() => { msg.textContent = ""; }, 3000);
+            }
+        };
+
+        async function markAsAdded(memberID) {
+            if (!db) return;
+            try {
+                const { error } = await db.from("customers").update({ added_to_group: true }).eq("member_id", memberID);
+                if (error) throw error;
+                await loadData();
+            } catch (err) {
+                console.error("خطأ التحديث:", err);
+            }
+        }
+
+        async function loadData() {
+            if (!currentProjectCode || !db) return;
+            const tbody = document.getElementById("subscribersTable");
+
+            try {
+                const { data: customers, error } = await db.from("customers").select("*").eq("store_code", currentProjectCode);
+                if (error) throw error;
+
+                if (!customers || customers.length === 0) {
+                    tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #888;'>لا يوجد عملاء حتى الآن</td></tr>";
+                    return;
+                }
+
+                let totalVisits = 0, totalPoints = 0, offersSubscribers = [];
+
+                customers.forEach(user => {
+                    totalVisits += Number(user.visits || 0);
+                    totalPoints += Number(user.points || 0);
+                    if (user.marketing_opt_in) offersSubscribers.push(user);
+                });
+
+                document.getElementById("customersCount").textContent = customers.length;
+                document.getElementById("visitsCount").textContent = totalVisits;
+                document.getElementById("pointsCount").textContent = totalPoints;
+                document.getElementById("offersCount").textContent = offersSubscribers.length;
+
+                tbody.innerHTML = "";
+
+                if (offersSubscribers.length === 0) {
+                    tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #888;'>لا يوجد مشتركين بالعروض</td></tr>";
+                    return;
+                }
+
+                offersSubscribers.forEach(user => {
+                    let tr = document.createElement("tr");
+
+                    let tdName = document.createElement("td");
+                    tdName.textContent = user.name || "بدون اسم";
+
+                    let tdPhone = document.createElement("td");
+                    let phoneText = user.phone || "-";
+                    tdPhone.textContent = phoneText;
+                    if (user.phone) {
+                        let copyBtn = document.createElement("button");
+                        copyBtn.className = "btn-copy-phone";
+                        copyBtn.textContent = "نسخ";
+                        copyBtn.onclick = function() {
+                            navigator.clipboard.writeText(user.phone).then(function() {
+                                copyBtn.textContent = "تم ✓";
+                                setTimeout(function() { copyBtn.textContent = "نسخ"; }, 1500);
+                            });
+                        };
+                        tdPhone.appendChild(copyBtn);
+                    }
+
+                    let tdStatus = document.createElement("td");
+                    tdStatus.innerHTML = user.added_to_group 
+                        ? "<span class='badge-done'>تمت الإضافة ✅</span>" 
+                        : "<span class='badge-new'>جديد 🆕</span>";let tdAction = document.createElement("td");
+                    if (user.added_to_group) {
+                        tdAction.textContent = "-";
+                    } else {
+                        let btn = document.createElement("button");
+                        btn.className = "btn-add";
+                        btn.textContent = "تمت الإضافة";
+                        btn.onclick = async function() {
+                            btn.disabled = true;
+                            await markAsAdded(user.member_id);
+                        };
+                        tdAction.appendChild(btn);
+                    }
+
+                    tr.appendChild(tdName);
+                    tr.appendChild(tdPhone);
+                    tr.appendChild(tdStatus);
+                    tr.appendChild(tdAction);
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #ff7777;'>خطأ في تحميل البيانات</td></tr>";
+            }
+        }
+
+        loadSettings();
+        loadData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K Loyalty - الكاشير</title>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- قارئ QR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script>
+        // بديل في حال تعذر تحميل المكتبة من cdnjs
+        if (typeof Html5Qrcode === "undefined") {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"><\/script>');
+        }
+    </script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        body { min-height: 100vh; background: #0b0b0b; color: white; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .cashier-card { width: 100%; max-width: 420px; background: #151515; border: 1px solid #d4af37; border-radius: 24px; padding: 30px 22px; text-align: center; box-shadow: 0 10px 40px rgba(212,175,55,0.15); }
+        .logo { width: 65px; height: 65px; margin: 0 auto 18px; border-radius: 50%; background: #d4af37; color: #111; display: flex; justify-content: center; align-items: center; font-size: 26px; font-weight: bold; }
+        h1 { color: #d4af37; margin-bottom: 10px; }
+        .description { color: #aaa; font-size: 14px; margin-bottom: 22px; }
+        input[type="text"] { width: 100%; padding: 15px; background: #202020; color: white; border: 1px solid #333; border-radius: 12px; outline: none; font-size: 16px; margin-bottom: 14px; text-align: center; }
+        input[type="text"]:focus { border-color: #d4af37; }
+        button { width: 100%; padding: 15px; background: #d4af37; color: #111; border: none; border-radius: 12px; font-size: 17px; font-weight: bold; cursor: pointer; margin-bottom: 12px; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        #reader { display: none; width: 100%; margin: 18px auto; border: 1px solid #333; border-radius: 16px; overflow: hidden; }
+        #reader video { width: 100%; border-radius: 16px; }
+        .divider { margin: 8px 0 18px; color: #777; font-size: 14px; }
+        .customer { margin-top: 25px; background: #1d1d1d; border: 1px solid #333; border-radius: 18px; padding: 20px; text-align: right; }
+        .customer h2 { color: #d4af37; margin-bottom: 15px; text-align: center; font-size: 18px; }
+        .customer p { margin-bottom: 10px; color: #ddd; font-size: 14px; }
+        .reward { margin-top: 18px; padding: 15px; background: #2a210c; border: 1px solid #d4af37; border-radius: 14px; color: #d4af37; text-align: center; font-weight: bold; }
+        .error { margin-top: 20px; color: #ff7777; font-size: 15px; text-align: center; }
+        .success { margin-top: 10px; color: #76e39b; font-size: 15px; text-align: center; }
+        .project { color: #d4af37; font-weight: bold; text-align: center; margin-bottom: 15px; }
+        .back-link { display: inline-block; margin-top: 18px; color: #ddd; background: #333; border: 1px solid #444; border-radius: 8px; padding: 7px 11px; text-decoration: none; font-size: 12px; }
+    </style>
+</head>
+
+<body>
+
+    <main class="cashier-card">
+        <div class="logo">K</div>
+        <h1>لوحة الكاشير</h1>
+        <p class="description">امسح QR العميل للوصول إلى بطاقته.</p>
+
+        <!-- الكاميرا -->
+        <button id="scanButton" type="button">📷 مسح بالكاميرا</button>
+        <button id="stopScanButton" type="button" style="display:none;background:#8b2d2d;color:#fff;">⏹ إيقاف الكاميرا</button>
+        <div id="reader"></div>
+
+        <!-- صورة QR -->
+        <button id="imageButton" type="button">🖼 اختيار صورة QR</button>
+        <input type="file" id="qrImage" accept="image/*" style="display:none;">
+
+        <div id="qrFileReader" style="display:none;"></div>
+
+        <div class="divider">أو</div>
+
+        <!-- إدخال يدوي -->
+        <input type="text" id="memberID" placeholder="أدخل رقم العضوية" autocomplete="off">
+        <button id="searchButton" type="button">البحث عن العميل</button>
+
+        <!-- النتيجة -->
+        <div id="customerResult"></div>
+
+        <a id="cashierLogoutLink" class="back-link" href="index.html">تسجيل خروج</a>
+    </main><script>
+        // =================================================
+        // SUPABASE
+        // =================================================
+        const SUPABASE_URL = "https://ofylogxewabdiemaifep.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_UzOHSK-Jk_5KVVu0TEcFxQ_bOjlAgFQ";
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        document.getElementById("cashierLogoutLink").addEventListener("click", function () {
+            localStorage.removeItem("k_loyalty_saved_dest");
+        });
+
+        // =================================================
+        // العناصر
+        // =================================================
+        const memberIDInput = document.getElementById("memberID");
+        const searchButton = document.getElementById("searchButton");
+        const scanButton = document.getElementById("scanButton");
+        const stopScanButton = document.getElementById("stopScanButton");
+        const imageButton = document.getElementById("imageButton");
+        const qrImage = document.getElementById("qrImage");
+        const qrFileReader = document.getElementById("qrFileReader");
+        const reader = document.getElementById("reader");
+        const customerResult = document.getElementById("customerResult");
+
+        let qrScanner = null;
+        let fileScanner = null;
+        let scanning = false;
+        let scannerStarting = false;
+
+        // =================================================
+        // أدوات الكاميرا
+        // =================================================
+
+        function setCameraUi(active) {
+            reader.style.display = active ? "block" : "none";
+            scanButton.style.display = active ? "none" : "block";
+            stopScanButton.style.display = active ? "block" : "none";
+        }
+
+        function ensureHtml5Qrcode() {
+            if (typeof Html5Qrcode !== "undefined") {
+                return Promise.resolve(true);
+            }
+
+            return new Promise(function (resolve, reject) {
+                const script = document.createElement("script");
+                script.src = "https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js";
+                script.onload = function () {
+                    resolve(typeof Html5Qrcode !== "undefined");
+                };
+                script.onerror = function () {
+                    reject(new Error("library"));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // معرفة المشروع من الرابط إن وجد
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentProjectCode = urlParams.get('project');
+
+        // =================================================
+        // جلب إعدادات الولاء مباشرة وآنياً من Supabase
+        // =================================================
+        async function getSettingsAsync(storeCode) {
+            const targetCode = storeCode || currentProjectCode;
+            
+            if (targetCode) {
+                try {
+                    const { data, error } = await db.from("stores")
+                        .select("points_per_visit, reward_points, reward_name, visit_period_days, visit_target")
+                        .eq("store_code", targetCode)
+                        .maybeSingle();
+
+                    if (data) {
+                        return {
+                            pointsPerVisit: Number(data.points_per_visit) || 10,
+                            rewardPoints: Number(data.reward_points) || 100,
+                            rewardName: data.reward_name || "خصم 10%",
+                            periodDays: Number(data.visit_period_days) || 30,
+                            visitTarget: Number(data.visit_target) || 4
+                        };
+                    }
+                } catch (e) {
+                    console.error("خطأ في جلب بيانات السحابة:", e);
+                }
+            }
+
+            return { pointsPerVisit: 10, rewardPoints: 100, rewardName: "خصم 10%", periodDays: 30, visitTarget: 4 };
+        }
+
+        // =================================================
+        // رسالة خطأ
+        // =================================================
+        function showError(message) {
+            customerResult.innerHTML = '<div class="error">' + message + '</div>';
+        }
+
+        // =================================================
+        // تحليل QR
+        // =================================================
+        function parseQR(qrText) {
+            qrText = qrText.trim();
+            if (qrText.includes("|")) {
+                const parts = qrText.split("|");
+                const storeCode = parts[0].trim();
+                const memberID = parts[1].trim();
+
+                if (!storeCode || !memberID) {
+                    return null;
+                }
+                return { storeCode: storeCode, memberID: memberID };
+            }
+
+            return {
+                storeCode: currentProjectCode || null,
+                memberID: qrText
+            };
+        }
+
+        // =================================================
+        // البحث عن العميل
+        // =================================================
+        async function findCustomer(value) {
+            value = value.trim();
+            if (!value) {
+                showError("يرجى إدخال أو مسح رقم العضوية.");
+                return;
+            }
+
+            customerResult.innerHTML = "<div style='padding:15px;color:#d4af37;'>جاري البحث...</div>";
+
+            try {
+                const qrData = parseQR(value);
+                if (!qrData) {
+                    showError("رمز QR غير صحيح.");
+                    return;
+                }let query = db.from("customers").select("*").eq("member_id", qrData.memberID);
+
+                if (qrData.storeCode) {
+                    query = query.eq("store_code", qrData.storeCode);
+                }
+
+                const result = await query.maybeSingle();
+
+                if (result.error) {
+                    console.error(result.error);
+                    showError("حدث خطأ أثناء البحث: " + result.error.message);
+                    return;
+                }
+
+                if (!result.data) {
+                    showError("لم يتم العثور على العميل.");
+                    return;
+                }
+
+                await showCustomer(result.data);
+            } catch (error) {
+                console.error(error);
+                showError("حدث خطأ: " + error.message);
+            }
+        }
+
+        // =================================================
+        // عرض العميل
+        // =================================================
+        async function showCustomer(customer) {
+            // جلب الإعدادات المحدثة تلقائياً للمشروع الخاص بهذا العميل من السحابة مباشرة
+            const settings = await getSettingsAsync(customer.store_code);
+            const visits = Number(customer.visits || 0);
+            const points = Number(customer.points || 0);
+            const periodVisits = Number(customer.period_visits || 0);
+            const target = settings.visitTarget;
+
+            // التحقق من انتهاء المدة
+            let periodOK = true;
+            if (customer.period_start) {
+                const start = new Date(customer.period_start);
+                const now = new Date();
+                const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+                if (diffDays >= settings.periodDays) {
+                    periodOK = false;
+                }
+            }
+
+            // إظهار عداد الزيارات
+            const progress = Math.min(periodVisits, target);
+            const progressPercent = target > 0 ? Math.round((progress / target) * 100) : 0;
+            const progressHTML =
+                '<div style="margin-top:12px;background:#202020;border-radius:10px;padding:10px;">' +
+                '<div style="color:#d4af37;font-weight:bold;margin-bottom:8px;">🎯 عداد الزيارات للخصم</div>' +
+                '<div style="display:flex;justify-content:space-between;color:#ddd;font-size:13px;margin-bottom:6px;">' +
+                '<span>الزيارات الحالية: ' + periodVisits + ' / ' + target + '</span>' +
+                '<span>المدة: ' + settings.periodDays + ' يوم</span>' +
+                '</div>' +
+                '<div style="background:#111;border-radius:8px;height:14px;overflow:hidden;">' +
+                '<div style="background:' + (progress >= target ? '#28a745' : '#d4af37') + ';height:100%;width:' + progressPercent + '%;border-radius:8px;transition:width .3s;"></div>' +
+                '</div>' +
+                (periodOK ? '' : '<div style="color:#ff7777;font-size:12px;margin-top:6px;">⏰ انتهت المدة! العداد بيبدأ من جديد لزيارة هالعميل</div>') +
+                '</div>';
+
+            const hasPointsReward = points >= settings.rewardPoints;
+            const hasVisitReward = periodVisits >= target && target > 0 && periodOK;
+            const hasReward = hasPointsReward || hasVisitReward;
+            const rewardHTML = hasReward
+                ? '<div class="reward">' +
+                    '🎉 العميل يستحق مكافأة!' +
+                    '<br><br>' +
+                    '<strong>' + settings.rewardName + '</strong>' +
+                    '<button type="button" style="margin-top:12px;" id="useRewardButton">' +
+                    'استخدام المكافأة' +
+                    '</button>' +
+                    '</div>'
+                : "";
+
+            const name = customer.name || "بدون اسم";
+            const phone = customer.phone || "غير مسجل";
+            const storeCode = customer.store_code || "-";
+
+            customerResult.innerHTML =
+                '<div class="customer">' +
+                '<h2>بيانات العميل</h2>' +
+                '<div class="project">المشروع: ' + storeCode + '</div>' +
+                '<p><strong>الاسم:</strong> ' + name + '</p>' +
+                '<p><strong>رقم العضوية:</strong> ' + customer.member_id + '</p>' +
+                '<p><strong>الهاتف:</strong> ' + phone + '</p>' +
+                '<p><strong>إجمالي الزيارات:</strong> ' + visits + '</p>' +
+                '<p><strong>النقاط:</strong> ' + points + '</p>' +
+                progressHTML +
+                rewardHTML +
+                '<button type="button" style="margin-top:10px;" id="addVisitButton">' +
+                'تسجيل زيارة (+' + settings.pointsPerVisit + ' نقاط)' +
+                '</button>' +
+                '</div>';
+
+            // =========================================
+            // تسجيل زيارة
+            // =========================================
+            const addVisitButton = document.getElementById("addVisitButton");
+            addVisitButton.onclick = async function () {
+                this.disabled = true;
+                this.innerText = "جاري الحفظ...";
+
+                const newVisits = visits + 1;
+
+                // التحقق من انتهاء المدة
+                let nowStr = new Date().toISOString();
+                let newPeriodStart = customer.period_start || nowStr;
+                let newPeriodVisits = periodVisits;
+
+                if (!customer.period_start) {
+                    // أول زيارة - نبدأ الدورة
+                    newPeriodStart = nowStr;
+                    newPeriodVisits = 1;
+                } else {
+                    const start = new Date(customer.period_start);
+                    const now = new Date();
+                    const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+                    if (diffDays >= settings.periodDays) {
+                        // المدة انتهت - تصفير العداد ونبدأ من جديد
+                        newPeriodStart = nowStr;
+                        newPeriodVisits = 1;
+                    } else {
+                        newPeriodVisits = periodVisits + 1;
+                    }
+                }
+
+                const newPoints = points + settings.pointsPerVisit;
+
+                try {
+                    const result = await db
+                        .from("customers")
+                        .update({
+                            visits: newVisits,
+                            points: newPoints,
+                            period_start: newPeriodStart,
+                            period_visits: newPeriodVisits
+                        })
+                        .eq("id", customer.id)
+                        .select()
+                        .single();
+
+                    if (result.error) throw result.error;
+
+                    await showCustomer(result.data);
+                    customerResult.innerHTML += '<div class="success">تم تسجيل الزيارة بنجاح ✅</div>';
+                } catch (error) {
+                    console.error(error);
+                    showError("تعذر تحديث البيانات: " + error.message);
+                }
+            };// =========================================
+            // استخدام المكافأة
+            // =========================================
+            const useRewardButton = document.getElementById("useRewardButton");
+            if (useRewardButton) {
+                useRewardButton.onclick = async function () {
+                    this.disabled = true;
+                    this.innerText = "جاري استخدام المكافأة...";
+                    const updates = {};
+                    if (hasPointsReward) {
+                        updates.points = Math.max(0, points - settings.rewardPoints);
+                    }
+                    if (hasVisitReward) {
+                        updates.period_visits = 0;
+                    }
+
+                    try {
+                        const result = await db
+                            .from("customers")
+                            .update(updates)
+                            .eq("id", customer.id)
+                            .select()
+                            .single();
+
+                        if (result.error) throw result.error;
+
+                        await showCustomer(result.data);
+                        customerResult.innerHTML += '<div class="success">تم استخدام المكافأة بنجاح ✅</div>';
+                    } catch (error) {
+                        console.error(error);
+                        showError("تعذر استخدام المكافأة.");
+                    }
+                };
+            }
+        }
+
+        // =================================================
+        // البحث اليدوي
+        // =================================================
+        searchButton.onclick = function () {
+            findCustomer(memberIDInput.value);
+        };
+
+        memberIDInput.onkeypress = function(e) {
+            if (e.key === 'Enter') {
+                findCustomer(memberIDInput.value);
+            }
+        };
+
+        // =================================================
+        // إيقاف الكاميرا
+        // =================================================
+        async function stopScanner() {
+            scanning = false;
+
+            const current = qrScanner;
+            qrScanner = null;
+
+            if (current) {
+                try {
+                    await current.stop();
+                } catch (e) {
+                    console.warn(e);
+                }
+                try {
+                    current.clear();
+                } catch (e) {
+                    console.warn(e);
+                }
+            }
+
+            setCameraUi(false);
+            scanButton.disabled = false;
+            scanButton.textContent = "📷 مسح بالكاميرا";
+        }
+
+        // =================================================
+        // تشغيل الكاميرا
+        // =================================================
+        async function startScanner() {
+            if (scanning || scannerStarting) return;
+
+            scannerStarting = true;
+            showError("");
+
+            try {
+                if (!window.isSecureContext) {
+                    throw new Error("insecure");
+                }
+
+                const loaded = await ensureHtml5Qrcode();
+                if (!loaded) {
+                    throw new Error("library");
+                }
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("insecure");
+                }
+
+                setCameraUi(true);
+                scanning = true;
+                scanButton.disabled = true;
+                scanButton.textContent = "📷 جاري فتح الكاميرا...";
+
+                const config = {
+                    fps: 15,
+                    qrbox: function (width, height) {
+                        const size = Math.floor(Math.min(width, height) * 0.72);
+                        return { width: size, height: size };
+                    },
+                    aspectRatio: 1.0,
+                    disableFlip: false
+                };
+
+                const onScan = async function (decodedText) {
+                    if (!scanning) return;
+                    await stopScanner();
+                    memberIDInput.value = decodedText;
+                    findCustomer(decodedText);
+                };
+
+                function createScanner() {
+                    return new Html5Qrcode("reader", {
+                        verbose: false,
+                        experimentalFeatures: {
+                            useBarCodeDetectorIfSupported: true
+                        }
+                    });
+                }
+
+                qrScanner = createScanner();
+
+                try {
+                    await qrScanner.start(
+                        { facingMode: "environment" },
+                        config,
+                        onScan,
+                        function () {}
+                    );
+                } catch (firstError) {
+                    // بعض الأجهزة (لابتوب / كاميرا واحدة) لا تدعم facingMode
+                    console.warn("environment camera failed, trying another camera:", firstError);
+
+                    let cameraId = null;
+
+                    try {
+                        const cameras = await Html5Qrcode.getCameras();
+                        if (cameras && cameras.length) {
+                            cameraId = cameras[0].id;
+                        }
+                    } catch (camError) {
+                        console.warn(camError);
+                    }
+
+                    if (!cameraId) {
+                        throw firstError;
+                    }
+
+                    if (qrScanner) {
+                        try { await qrScanner.stop(); } catch (e) {}
+                        try { qrScanner.clear(); } catch (e) {}
+                    }
+
+                    qrScanner = createScanner();
+
+                    await qrScanner.start(
+                        cameraId,
+                        config,
+                        onScan,
+                        function () {}
+                    );
+                }
+            } catch (error) {
+                console.error(error);
+                await stopScanner();
+
+                if (String(error && error.message) === "library") {
+                    showError("تعذر تحميل مكتبة قارئ QR. تحقق من الإنترنت ثم أعد المحاولة.");
+                } else {
+                    showError("تعذر فتح الكاميرا. تأكد من إعطاء صلاحية الكاميرا.");
+                }
+            } finally {
+                scannerStarting = false;
+
+                if (!scanning) {
+                    scanButton.disabled = false;
+                    scanButton.textContent = "📷 مسح بالكاميرا";
+                }
+            }
+        }
+
+        scanButton.onclick = startScanner;
+        stopScanButton.onclick = stopScanner;
+
+        // إيقاف الكاميرا عند مغادرة الصفحة
+        window.addEventListener("pagehide", function () {
+            if (scanning) {
+                stopScanner();
+            }
+        });
+
+        // =================================================
+        // قراءة QR من صورة
+        // =================================================
+        async function scanImageFile(file) {
+            if (!file) return;
+
+            showError("");
+            customerResult.innerHTML = "<div style='padding:15px;color:#d4af37;'>جاري قراءة QR...</div>";
+
+            try {
+                const loaded = await ensureHtml5Qrcode();
+                if (!loaded) {
+                    throw new Error("library");
+                }
+
+                if (fileScanner) {
+                    try { fileScanner.clear(); } catch (e) {}
+                    fileScanner = null;
+                }
+
+                fileScanner = new Html5Qrcode("qrFileReader", { verbose: false });
+
+                const decodedText = await fileScanner.scanFile(file, true);
+
+                try { fileScanner.clear(); } catch (e) {}
+                fileScanner = null;
+
+                memberIDInput.value = decodedText;
+                await findCustomer(decodedText);
+            } catch (error) {
+                console.error(error);
+
+                if (fileScanner) {
+                    try { fileScanner.clear(); } catch (e) {}
+                    fileScanner = null;
+                }
+
+                if (String(error && error.message) === "library") {
+                    showError("تعذر تحميل مكتبة قارئ QR. تحقق من الإنترنت ثم أعد المحاولة.");
+                } else {
+                    showError("لم يتم العثور على QR واضح في الصورة. جرّب صورة أقرب وأوضح.");
+                }
+            }
+        }
+
+        imageButton.onclick = function () {
+            qrImage.click();
+        };
+
+        qrImage.onchange = function (event) {
+            const file = event.target.files[0];
+            qrImage.value = "";
+            scanImageFile(file);
+        };
+    </script>
+</body></html>

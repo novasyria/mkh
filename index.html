@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>K Loyalty - الدخول</title>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- الخط -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&display=swap"
+        rel="stylesheet"
+    >
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        body {
+
+            background: #0b0b0b;
+
+            color: white;
+
+            min-height: 100vh;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding: 20px;
+
+        }
+
+        .box {
+
+            width: 100%;
+
+            max-width: 400px;
+
+            background: #151515;
+
+            border: 1px solid #d4af37;
+
+            border-radius: 20px;
+
+            padding: 30px;
+
+            text-align: center;
+
+            box-shadow:
+                0 10px 30px
+                rgba(0, 0, 0, .5);
+
+        }
+
+        .title {
+
+            color: #d4af37;
+
+            font-size: 28px;
+
+            font-weight: 800;
+
+            margin-bottom: 8px;
+
+        }
+
+        .sub {
+
+            color: #888;
+
+            font-size: 14px;
+
+            margin-bottom: 25px;
+
+        }
+
+        .saved-project {
+
+            background: #202020;
+
+            border: 1px solid #333;
+
+            border-radius: 12px;
+
+            padding: 15px;
+
+            margin-bottom: 15px;
+
+            color: #ddd;
+
+            font-size: 14px;
+
+        }
+
+        .saved-project strong {
+
+            color: #d4af37;
+
+            display: block;
+
+            margin-top: 5px;
+
+            font-size: 17px;
+
+        }
+
+        input {
+
+            width: 100%;
+
+            padding: 14px;
+
+            background: #202020;
+
+            color: white;
+
+            border: 1px solid #333;
+
+            border-radius: 12px;
+
+            font-size: 18px;
+
+            text-align: center;
+
+            outline: none;
+
+            margin-bottom: 15px;
+
+        }
+
+        input:focus {
+
+            border-color: #d4af37;
+
+        }
+
+        button {
+
+            width: 100%;
+
+            padding: 13px;
+
+            background: #d4af37;
+
+            color: #111;
+
+            border: none;
+
+            border-radius: 12px;
+
+            font-size: 16px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+            margin-bottom: 10px;
+
+        }
+
+        button:hover {
+
+            background: #f0c542;
+
+        }
+
+        button:disabled {
+
+            opacity: .6;
+
+            cursor: not-allowed;
+
+        }
+
+        .change-button {
+
+            background: #333;
+
+            color: white;
+
+        }
+
+        .change-button:hover {
+
+            background: #444;
+
+        }
+
+        .error {
+
+            color: #ff7777;
+
+            margin-top: 15px;
+
+            font-size: 14px;
+
+            min-height: 20px;
+
+        }
+
+        .loading {
+
+            color: #d4af37;
+
+        }
+
+        .hidden {
+
+            display: none !important;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="box">
+
+
+    <div class="title">
+        K Loyalty
+    </div>
+
+
+    <div
+        id="subtitle"
+        class="sub"
+    >
+        أدخل رمز الوصول الخاص بك
+    </div>
+
+
+    <!-- المشروع المحفوظ -->
+
+    <div
+        id="savedProject"
+        class="saved-project hidden"
+    >
+
+        المشروع المحفوظ
+
+        <strong id="savedProjectName">
+            -
+        </strong>
+
+    </div>
+
+
+    <!-- زر الدخول للمشروع المحفوظ -->
+
+    <button
+        id="goToSavedButton"
+        class="hidden"
+        type="button"
+    >
+        الدخول للمشروع
+    </button>
+
+
+    <!-- إدخال الرمز -->
+
+    <div id="codeSection">
+
+        <input
+            type="text"
+            id="accessCode"
+            placeholder="أدخل الرمز هنا"
+            autocomplete="off"
+        >
+
+
+        <button
+            id="loginButton"
+            type="button"
+        >
+            دخول
+        </button>
+
+    </div>
+
+
+    <!-- تغيير المشروع --><button
+        id="changeProjectButton"
+        class="change-button hidden"
+        type="button"
+    >
+        تغيير المشروع
+    </button>
+
+
+    <div
+        id="errorMsg"
+        class="error"
+    ></div>
+
+
+</div>
+
+
+<script>
+
+
+// =====================================
+// SUPABASE
+// =====================================
+
+const db =
+    window.supabase.createClient(
+
+        "https://ofylogxewabdiemaifep.supabase.co",
+
+        "sb_publishable_UzOHSK-Jk_5KVVu0TEcFxQ_bOjlAgFQ"
+
+    );
+
+
+// =====================================
+// رموز الإدارة العامة
+// =====================================
+
+const GENERAL_CODES = [
+
+    "4321"
+
+];
+
+
+let savedDestination = null;
+
+
+// =====================================
+// التخزين
+// =====================================
+
+const SAVED_DEST_KEY =
+    "k_loyalty_saved_dest";
+
+
+// =====================================
+// عناصر الصفحة
+// =====================================
+
+const accessCode =
+    document.getElementById(
+        "accessCode"
+    );
+
+
+const loginButton =
+    document.getElementById(
+        "loginButton"
+    );
+
+
+const errorMsg =
+    document.getElementById(
+        "errorMsg"
+    );
+
+
+const savedProject =
+    document.getElementById(
+        "savedProject"
+    );
+
+
+const savedProjectName =
+    document.getElementById(
+        "savedProjectName"
+    );
+
+
+const changeProjectButton =
+    document.getElementById(
+        "changeProjectButton"
+    );
+
+
+const codeSection =
+    document.getElementById(
+        "codeSection"
+    );
+
+
+const subtitle =
+    document.getElementById(
+        "subtitle"
+    );
+
+
+// =====================================
+// إظهار المشروع المحفوظ
+// =====================================
+
+async function loadSavedProject() {
+
+    const savedDest =
+        localStorage.getItem(
+            SAVED_DEST_KEY
+        );
+
+
+    if (!savedDest) {
+
+        return;
+
+    }
+
+
+    savedDestination =
+        savedDest;
+
+
+    // الإدارة العامة
+
+    if (
+        savedDest === "admin.html"
+    ) {
+
+        window.location.replace(
+            savedDest
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !/^(client|cashier|owner)\.html\?project=/.test(savedDest)
+    ) {
+
+        localStorage.removeItem(
+            SAVED_DEST_KEY
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        // استخراج كود المشروع من الرابط
+
+        const urlObj =
+            new URL(
+                savedDest,
+                window.location.href
+            );
+
+        const savedCode =
+            urlObj.searchParams.get(
+                "project"
+            ) || "";
+
+
+        if (!savedCode) {
+
+            localStorage.removeItem(
+                SAVED_DEST_KEY
+            );
+
+            return;
+
+        }
+
+
+        const result =
+            await db
+                .from("stores")
+                .select(
+                    "store_code, store_name, is_active"
+                )
+                .eq(
+                    "store_code",
+                    savedCode
+                )
+                .maybeSingle();
+
+
+        if (result.error) {
+
+            throw result.error;
+
+        }
+
+
+        if (!result.data) {
+
+            localStorage.removeItem(
+                SAVED_DEST_KEY
+            );
+
+            return;
+
+        }
+
+
+        const store =
+            result.data;
+
+
+        // المشروع متوقف
+
+        if (
+            store.is_active !== true
+        ) {
+
+            localStorage.removeItem(
+                SAVED_DEST_KEY
+            );
+
+            errorMsg.textContent =
+                "المشروع المحفوظ متوقف حالياً.";
+
+            return;
+
+        }
+
+
+        window.location.replace(
+            savedDest
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Saved project validation error:",
+            error
+        );
+
+        errorMsg.textContent =
+            "تعذر التحقق من المشروع المحفوظ. تحقق من اتصال الإنترنت وحاول مجدداً.";
+
+    }
+
+}
+
+
+// =====================================
+// الدخول
+// =====================================
+
+async function login() {
+
+    const code =
+        accessCode.value.trim();
+
+
+    errorMsg.textContent = "";
+
+
+    if (!code) {
+
+        errorMsg.textContent =
+            "يرجى إدخال الرمز أولاً";
+
+        return;
+
+    }
+
+
+    // =================================
+    // الإدارة العامة
+    // =================================
+
+    if (
+        GENERAL_CODES.includes(code)
+    ) {
+
+        sessionStorage.setItem(
+            "k_general_login",
+            "true"
+        );
+
+        localStorage.setItem(
+            SAVED_DEST_KEY,
+            "admin.html"
+        );
+
+        window.location.href =
+            "admin.html";
+
+
+        return;
+
+    }loginButton.disabled =
+        true;
+
+
+    loginButton.textContent =
+        "جاري التحقق...";
+
+
+    try {
+
+
+        // =================================
+        // 1 - الكاشير
+        // =================================
+
+        const cashierResult =
+            await db
+                .from("stores")
+                .select(
+                    "id, store_code, is_active"
+                )
+                .eq(
+                    "code_cashier",
+                    code
+                )
+                .maybeSingle();
+
+
+        if (cashierResult.error) {
+
+            throw cashierResult.error;
+
+        }
+
+
+        if (cashierResult.data) {
+
+            const store =
+                cashierResult.data;
+
+
+            if (
+                store.is_active !== true
+            ) {
+
+                errorMsg.textContent =
+                    "هذا المشروع متوقف حالياً.";
+
+                return;
+
+            }
+
+
+            window.location.href =
+                "cashier.html?project=" +
+                encodeURIComponent(
+                    store.store_code
+                );
+
+            localStorage.setItem(
+                SAVED_DEST_KEY,
+                "cashier.html?project=" +
+                encodeURIComponent(
+                    store.store_code
+                )
+            );
+
+
+            return;
+
+        }
+
+
+        // =================================
+        // 2 - إدارة المشروع
+        // =================================
+
+        const adminResult =
+            await db
+                .from("stores")
+                .select(
+                    "id, store_code, is_active"
+                )
+                .eq(
+                    "code_admin",
+                    code
+                )
+                .maybeSingle();
+
+
+        if (adminResult.error) {
+
+            throw adminResult.error;
+
+        }
+
+
+        if (adminResult.data) {
+
+            const store =
+                adminResult.data;
+
+
+            if (
+                store.is_active !== true
+            ) {
+
+                errorMsg.textContent =
+                    "هذا المشروع متوقف حالياً.";
+
+                return;
+
+            }
+
+
+            window.location.href =
+                "owner.html?project=" +
+                encodeURIComponent(
+                    store.store_code
+                );
+
+            localStorage.setItem(
+                SAVED_DEST_KEY,
+                "owner.html?project=" +
+                encodeURIComponent(
+                    store.store_code
+                )
+            );
+
+
+            return;
+
+        }
+
+
+        // =================================
+        // 3 - العميل
+        // =================================
+
+        const clientResult =
+            await db
+                .from("stores")
+                .select(
+                    "id, store_code, store_name, is_active"
+                )
+                .eq(
+                    "code_client",
+                    code
+                )
+                .maybeSingle();
+
+
+        if (clientResult.error) {
+
+            throw clientResult.error;
+
+        }
+
+
+        if (clientResult.data) {
+
+            const store =
+                clientResult.data;
+
+
+            if (
+                store.is_active !== true
+            ) {
+
+                errorMsg.textContent =
+                    "هذا المشروع متوقف حالياً.";
+
+                return;
+
+            }
+
+
+            // =================================
+            // حفظ المشروع على الجهاز
+            // =================================
+
+            const destURL =
+                "client.html?project=" +
+                encodeURIComponent(
+                    store.store_code
+                );
+
+            localStorage.setItem(
+                SAVED_DEST_KEY,
+                destURL
+            );
+
+
+            // فتح صفحة العميل
+            // نرسل store_code وليس code_client
+
+            window.location.href =
+                destURL;
+
+
+            return;
+
+        }
+
+
+        // =================================
+        // الرمز غير موجود
+        // =================================
+
+        errorMsg.textContent =
+            "الرمز المدخل غير صحيح.";
+
+
+    } catch (error) {
+
+        console.error(
+            "Login Error:",
+            error
+        );
+
+
+        errorMsg.textContent =
+            "حدث خطأ أثناء التحقق من الرمز.";
+
+    } finally {
+
+        loginButton.disabled =
+            false;
+
+        loginButton.textContent =
+            "دخول";
+
+    }
+
+}// =====================================
+// تغيير المشروع
+// =====================================
+
+changeProjectButton.onclick =
+    function() {
+
+        localStorage.removeItem(
+            SAVED_DEST_KEY
+        );
+
+        savedDestination =
+            null;
+
+
+        savedProject.classList.add(
+            "hidden"
+        );
+
+
+        changeProjectButton.classList.add(
+            "hidden"
+        );
+
+
+        document.getElementById(
+            "goToSavedButton"
+        ).classList.add(
+            "hidden"
+        );
+
+
+        codeSection.classList.remove(
+            "hidden"
+        );
+
+
+        subtitle.textContent =
+            "أدخل رمز المشروع الجديد";
+
+
+        accessCode.value =
+            "";
+
+
+        errorMsg.textContent =
+            "";
+
+
+        accessCode.focus();
+
+    };
+
+
+// =====================================
+// زر الدخول للمشروع المحفوظ
+// =====================================
+
+document.getElementById(
+    "goToSavedButton"
+).onclick =
+    function() {
+
+        if (savedDestination) {
+
+            window.location.href =
+                savedDestination;
+
+        }
+
+    };
+
+
+// =====================================
+// زر الدخول
+// =====================================
+
+loginButton.onclick =
+    login;
+
+
+// =====================================
+// Enter
+// =====================================
+
+accessCode.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            event.key === "Enter"
+        ) {
+
+            login();
+
+        }
+
+    }
+);
+
+
+// =====================================
+// تشغيل الصفحة
+// =====================================
+
+loadSavedProject();
+
+
+</script>
+
+
+</body>
+
+</html>

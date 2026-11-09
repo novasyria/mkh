@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>K Loyalty - بطاقة الولاء</title>
+
+    <!-- QR Code Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+                                                    
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(
+                    circle at top,
+                    #25200d 0%,
+                    #0b0b0b 45%,
+                    #050505 100%
+                );
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 430px;
+            background: rgba(20, 20, 20, 0.96);
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            border-radius: 25px;
+            padding: 30px 22px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 18px;
+            border-radius: 50%;
+            background:
+                linear-gradient(
+                    135deg,
+                    #f5dc7a,
+                    #d4af37,
+                    #9b7510
+                );
+            color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        h1 {
+            text-align: center;
+            color: #d4af37;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .project-name {
+            text-align: center;
+            color: #f3e5ab;
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            line-height: 1.8;
+            margin-bottom: 28px;
+        }
+
+        .section-title {
+            text-align: center;
+            color: #f3e5ab;
+            margin-bottom: 18px;
+            font-size: 18px;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 14px;
+            background: #202020;
+            border: 1px solid #333;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: #d4af37;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            background:
+                linear-gradient(
+                    135deg,
+                    #f0d66d,
+                    #d4af37,
+                    #a27b0c
+                );
+            color: #111;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .member-card {
+            display: none;
+            background:
+                linear-gradient(
+                    145deg,
+                    #202020,
+                    #111
+                );
+            border: 1px solid #d4af37;
+            border-radius: 20px;
+            padding: 22px 16px;
+            text-align: center;
+        }
+
+        .member-title {
+            color: #d4af37;
+            font-size: 22px;
+            margin-bottom: 20px;
+        }.customer-info {
+            text-align: right;
+            background: #171717;
+            border-radius: 14px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .customer-info p {
+            color: #ddd;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .customer-info strong {
+            color: #d4af37;
+        }
+
+        .qr-wrapper {
+            background: white;
+            width: 230px;
+            height: 230px;
+            margin: 20px auto;
+            padding: 15px;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #qrcode {
+            width: 200px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #qrcode img {
+            width: 190px;
+            height: 190px;
+            display: block;
+        }
+
+        .qr-text {
+            color: #777;
+            font-size: 12px;
+            margin-top: -10px;
+            margin-bottom: 15px;
+            direction: ltr;
+        }
+
+        .marketing-section {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+        }
+
+        .btns-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-yes {
+            background:
+                linear-gradient(
+                    135deg,
+                    #28a745,
+                    #218838
+                ) !important;
+            color: white !important;
+            flex: 1;
+        }
+
+        .btn-no {
+            background: #444 !important;
+            color: white !important;
+            flex: 1;
+        }
+
+        .error {
+            color: #ff7777;
+            text-align: center;
+            font-size: 14px;
+            min-height: 20px;
+            margin-top: 5px;
+        }
+
+        .success {
+            color: #76e39b;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .logout-link {
+            display: inline-block;
+            margin-bottom: 14px;
+            padding: 6px 10px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #ccc;
+            background: #252525;
+            text-decoration: none;
+            font-size: 12px;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<main class="container">
+
+    <a id="clientLogoutLink" class="logout-link" href="index.html">تسجيل خروج</a>
+
+    <div class="logo">
+        K
+    </div>
+
+
+    <h1>
+        K Loyalty
+    </h1>
+
+
+    <div
+        id="projectName"
+        class="project-name"
+    >
+        جاري تحميل المشروع...
+    </div>
+
+
+    <p class="subtitle">
+
+        بطاقة الولاء الرقمية الخاصة بك
+
+        <br>
+
+        اجمع الزيارات والنقاط واستفد من المكافآت.
+
+    </p>
+
+
+    <!-- ========================= -->
+    <!-- التسجيل -->
+    <!-- ========================= -->
+
+    <div id="registerSection">
+
+        <h2 class="section-title">
+            دخول / إنشاء بطاقة
+        </h2>
+
+
+        <input
+            type="text"
+            id="name"
+            placeholder="الاسم الكامل"
+            autocomplete="off"
+        >
+
+
+        <input
+            type="tel"
+            id="phone"
+            placeholder="رقم الهاتف"
+            autocomplete="off"
+        >
+
+
+        <button
+            id="createButton"
+            type="button"
+        >
+            عرض البطاقة / تسجيل
+        </button>
+
+
+        <div
+            id="errorMessage"
+            class="error"
+        ></div>
+
+    </div>
+
+
+    <!-- ========================= -->
+    <!-- البطاقة -->
+    <!-- ========================= -->
+
+    <div
+        id="memberCard"
+        class="member-card"
+    >
+
+        <h2 class="member-title">
+            بطاقة الولاء
+        </h2>
+
+
+        <div class="customer-info">
+
+            <p>
+                <strong>المشروع:</strong>
+                <span id="displayProject"></span>
+            </p>
+
+            <p>
+                <strong>الاسم:</strong>
+                <span id="displayName"></span>
+            </p>
+
+            <p>
+                <strong>رقم الهاتف:</strong>
+                <span id="displayPhone"></span>
+            </p>
+
+            <p>
+                <strong>رقم العضوية:</strong>
+                <span id="displayMemberID"></span>
+            </p><p>
+                <strong>الزيارات:</strong>
+                <span id="displayVisits">0</span>
+            </p>
+
+            <p>
+                <strong>النقاط:</strong>
+                <span id="displayPoints">0</span>
+            </p>
+
+        </div>
+
+
+        <!-- عداد الزيارات للخصم -->
+
+        <div
+            id="periodCounter"
+            class="period-counter"
+            style="
+            display:none;
+            background:#171717;
+            border-radius:14px;
+            padding:15px;
+            margin-bottom:20px;
+            text-align:center;
+            "
+        >
+
+            <div
+                style="
+                color:#d4af37;
+                font-weight:bold;
+                margin-bottom:10px;
+                "
+            >
+                🎯 عداد الزيارات للخصم
+            </div>
+
+            <div
+                id="counterInfo"
+                style="
+                color:#ddd;
+                font-size:13px;
+                margin-bottom:8px;
+                "
+            ></div>
+
+            <div
+                style="
+                background:#111;
+                border-radius:8px;
+                height:16px;
+                overflow:hidden;
+                "
+            >
+
+                <div
+                    id="counterBar"
+                    style="
+                    background:#d4af37;
+                    height:100%;
+                    width:0%;
+                    border-radius:8px;
+                    transition:width .4s;
+                    "
+                ></div>
+
+            </div>
+
+            <div
+                id="counterDaysLeft"
+                style="
+                color:#888;
+                font-size:12px;
+                margin-top:8px;
+                "
+            ></div>
+
+        </div>
+
+
+        <!-- QR -->
+
+        <div class="qr-wrapper">
+
+            <div id="qrcode"></div>
+
+        </div>
+
+
+        <div
+            id="qrText"
+            class="qr-text"
+        ></div>
+
+
+        <button
+            id="downloadQRButton"
+            type="button"
+        >
+            تنزيل الباركود
+        </button>
+
+
+        <!-- التسويق -->
+
+        <div
+            id="marketingSection"
+            class="marketing-section"
+        >
+
+            <p
+                style="
+                font-size:14px;
+                color:#ddd;
+                margin-bottom:15px;
+                "
+            >
+                هل ترغب بالانضمام لمجموعة العروض؟
+            </p>
+
+
+            <div class="btns-row">
+
+                <button
+                    id="btnYes"
+                    class="btn-yes"
+                    type="button"
+                >
+                    نعم، أرغب
+                </button>
+
+
+                <button
+                    id="btnNo"
+                    class="btn-no"
+                    type="button"
+                >
+                    لا شكراً
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <button
+            id="newCustomerButton"
+            type="button"
+            style="margin-top:20px;"
+        >
+            تسجيل بطاقة جديدة
+        </button>
+
+
+    </div>
+
+
+</main>
+
+
+<script>
+
+
+// =====================================
+// SUPABASE
+// =====================================
+
+const SUPABASE_URL =
+    "https://ofylogxewabdiemaifep.supabase.co";
+
+const SUPABASE_KEY =
+    "sb_publishable_UzOHSK-Jk_5KVVu0TEcFxQ_bOjlAgFQ";
+
+const db =
+    window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+    );
+
+document.getElementById("clientLogoutLink").addEventListener("click", function () {
+    localStorage.removeItem("k_loyalty_saved_dest");
+});
+
+
+// =====================================
+// قراءة الرابط
+// =====================================
+
+const urlParams =
+    new URLSearchParams(
+        window.location.search
+    );
+
+
+const projectCode =
+    (
+        urlParams.get("project") || ""
+    ).trim();
+
+const clientCode =
+    (
+        urlParams.get("code") || ""
+    ).trim();
+
+
+// =====================================
+// المشروع الحالي
+// =====================================
+
+let currentStore = null;
+
+
+// =====================================
+// عناصر الصفحة
+// =====================================
+
+const projectName =
+    document.getElementById(
+        "projectName"
+    );
+
+const registerSection =
+    document.getElementById(
+        "registerSection"
+    );
+
+const memberCard =
+    document.getElementById(
+        "memberCard"
+    );
+
+const createButton =
+    document.getElementById(
+        "createButton"
+    );
+
+const errorMessage =
+    document.getElementById(
+        "errorMessage"
+    );
+
+const marketingSection =
+    document.getElementById(
+        "marketingSection"
+    );
+
+
+// =====================================
+// رسالة الخطأ
+// =====================================
+
+function showError(message) {
+
+    errorMessage.textContent =
+        message;
+
+}
+
+
+// =====================================
+// تحميل المشروع
+// =====================================
+
+async function loadProject() {
+
+    try {
+
+        let result;
+
+
+        if (projectCode) {
+
+            result =
+                await db
+                    .from("stores")
+                    .select(
+                        "id, store_code, store_name, is_active, code_client"
+                    )
+                    .eq(
+                        "store_code",
+                        projectCode
+                    )
+                    .maybeSingle();
+
+        }
+
+
+        else if (clientCode) {result =
+                await db
+                    .from("stores")
+                    .select(
+                        "id, store_code, store_name, is_active, code_client"
+                    )
+                    .eq(
+                        "code_client",
+                        clientCode
+                    )
+                    .maybeSingle();
+
+        }
+
+
+        else {
+
+            projectName.textContent =
+                "رابط غير صحيح";
+
+            showError(
+                "لا يوجد كود مشروع أو كود عميل في الرابط."
+            );
+
+            createButton.disabled =
+                true;
+
+            return false;
+
+        }
+
+
+        if (result.error) {
+
+            console.error(
+                result.error
+            );
+
+            projectName.textContent =
+                "حدث خطأ";
+
+            showError(
+                "تعذر تحميل المشروع."
+            );
+
+            createButton.disabled =
+                true;
+
+            return false;
+
+        }
+
+
+        if (!result.data) {
+
+            projectName.textContent =
+                "المشروع غير موجود";
+
+            showError(
+                "رمز المشروع أو رمز العميل غير صحيح."
+            );
+
+            createButton.disabled =
+                true;
+
+            return false;
+
+        }
+
+
+        currentStore =
+            result.data;
+
+
+        projectName.textContent =
+            currentStore.store_name ||
+            "بدون اسم";
+
+
+        if (
+            currentStore.is_active === false
+        ) {
+
+            showError(
+                "هذا المشروع متوقف حالياً."
+            );
+
+            createButton.disabled =
+                true;
+
+            return false;
+
+        }
+
+
+        return true;
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        projectName.textContent =
+            "حدث خطأ";
+
+        showError(
+            "تعذر الاتصال بقاعدة البيانات."
+        );
+
+        createButton.disabled =
+            true;
+
+        return false;
+
+    }
+
+}
+
+
+// =====================================
+// إنشاء QR للعميل
+// =====================================
+
+function createCustomerQR(customer) {
+
+    const qrBox =
+        document.getElementById(
+            "qrcode"
+        );
+
+    const qrText =
+        document.getElementById(
+            "qrText"
+        );
+
+
+    qrBox.innerHTML = "";
+
+    qrText.textContent = "";
+
+
+    try {
+
+        // نضع كود المشروع مع رقم العضوية داخل الباركود
+        // حتى يستطيع الكاشير التعرف على العميل حتى لو لم يكن كود المشروع في الرابط
+
+        const qrData =
+            currentStore.store_code +
+            "|" +
+            String(
+                customer.member_id
+            );
+
+
+        if (
+            typeof window.qrcode !==
+            "function"
+        ) {
+
+            throw new Error(
+                "QR library not loaded"
+            );
+
+        }
+
+
+        const qr =
+            window.qrcode(
+                0,
+                "M"
+            );
+
+
+        qr.addData(
+            qrData
+        );
+
+
+        qr.make();
+
+
+        const image =
+            document.createElement(
+                "img"
+            );
+
+
+        image.src =
+            qr.createDataURL(
+                6,
+                2
+            );
+
+
+        image.alt =
+            "QR Code";
+
+
+        qrBox.appendChild(
+            image
+        );
+
+
+        qrText.textContent =
+            qrData;
+
+
+    } catch (error) {
+
+        console.error(
+            "QR ERROR:",
+            error
+        );
+
+        qrBox.innerHTML =
+            "<span style='color:#ff7777;font-size:13px;'>تعذر إنشاء الباركود</span>";
+
+    }
+
+}
+
+
+// =====================================
+// تنزيل QR
+// =====================================
+
+document
+    .getElementById(
+        "downloadQRButton"
+    )
+    .addEventListener(
+        "click",
+        function () {
+
+            const qrImage =
+                document.querySelector(
+                    "#qrcode img"
+                );
+
+
+            if (!qrImage) {
+
+                alert(
+                    "الباركود غير جاهز بعد."
+                );
+
+                return;
+
+            }
+
+
+            if (
+                !qrImage.complete ||
+                !qrImage.naturalWidth
+            ) {
+
+                alert(
+                    "انتظر لحظة حتى يجهز الباركود ثم أعد المحاولة."
+                );
+
+                return;
+
+            }
+
+
+            const link =
+                document.createElement(
+                    "a"
+                );
+
+
+            // تحويل الصورة إلى PNG حقيقي بدل صيغة GIF
+
+            const canvas =
+                document.createElement(
+                    "canvas"
+                );
+
+            canvas.width =
+                qrImage.naturalWidth ||
+                300;
+
+            canvas.height =
+                qrImage.naturalHeight ||
+                300;
+
+            canvas
+                .getContext("2d")
+                .drawImage(
+                    qrImage,
+                    0,
+                    0,
+                    canvas.width,
+                    canvas.height
+                );
+
+
+            link.href =
+                canvas.toDataURL(
+                    "image/png"
+                );
+
+            link.download =
+                "K-Loyalty-" +
+                document
+                    .getElementById(
+                        "displayMemberID"
+                    )
+                    .textContent +
+                ".png";
+
+
+            document.body.appendChild(
+                link
+            );
+
+
+            link.click();
+
+
+            document.body.removeChild(
+                link
+            );
+
+        }
+    );
+
+
+// =====================================
+// عرض البطاقة
+// =====================================
+
+function displayCard(customer) {
+
+    document.getElementById(
+        "displayProject"
+    ).textContent =
+        currentStore.store_name ||
+        "بدون اسم";
+
+
+    document.getElementById(
+        "displayName"
+    ).textContent =
+        customer.name ||
+        "بدون اسم";
+
+
+    document.getElementById(
+        "displayPhone"
+    ).textContent =
+        customer.phone ||
+        "غير مسجل";
+
+
+    document.getElementById(
+        "displayMemberID"
+    ).textContent =
+        customer.member_id ||
+        "-";
+
+
+    document.getElementById(
+        "displayVisits"
+    ).textContent =
+        Number(
+            customer.visits || 0
+        );
+
+
+    document.getElementById(
+        "displayPoints"
+    ).textContent =
+        Number(
+            customer.points || 0
+        );
+
+
+    createCustomerQR(
+        customer
+    );
+
+    loadPeriodCounter(
+        customer
+    );
+
+
+    registerSection.classList.add(
+        "hidden"
+    );
+
+
+    memberCard.style.display =
+        "block";
+
+}
+
+// =====================================
+// عداد الزيارات للخصم
+// =====================================
+
+async function loadPeriodCounter(customer) {
+
+    try {
+
+        const { data } =
+            await db
+                .from("stores")
+                .select(
+                    "visit_period_days, visit_target"
+                )
+                .eq(
+                    "store_code",
+                    currentStore.store_code
+                )
+                .maybeSingle();
+
+        const storeSettings =
+            data || {};
+
+
+        const periodDays =
+            Number(
+                storeSettings.visit_period_days || 30
+            );
+
+        const target =
+            Number(
+                storeSettings.visit_target || 4
+            );
+
+        const periodVisits =
+            Number(
+                customer.period_visits || 0
+            );
+
+
+        const counter =
+            document.getElementById(
+                "periodCounter"
+            );
+
+        if (
+            !target ||
+            target <= 0
+        ) {
+
+            counter.style.display =
+                "none";
+
+            return;
+
+        }
+
+
+        counter.style.display =
+            "block";
+
+
+        const percent =
+            Math.min(
+                Math.round(
+                    (periodVisits / target) * 100
+                ),
+                100
+            );
+
+
+        document.getElementById(
+            "counterInfo"
+        ).textContent =
+            "الزيارات: " +
+            periodVisits +
+            " من " +
+            target;
+
+
+        document.getElementById(
+            "counterBar"
+        ).style.width =
+            percent + "%";
+
+
+        document.getElementById(
+            "counterBar"
+        ).style.background =
+            percent >= 100
+                ? "#28a745"
+                : "#d4af37";
+
+
+        // الأيام المتبقية
+
+        let daysLeft =
+            periodDays;
+
+        if (
+            customer.period_start
+        ) {
+
+            const start =
+                new Date(
+                    customer.period_start
+                );
+
+            const elapsed =
+                Math.floor(
+                    (new Date() - start) /
+                    (1000 * 60 * 60 * 24)
+                );
+
+            daysLeft =
+                Math.max(
+                    0,
+                    periodDays - elapsed
+                );
+
+        }
+
+
+        document.getElementById(
+            "counterDaysLeft"
+        ).textContent =
+            daysLeft > 0
+                ? "⏳ متبقي " +
+                  daysLeft +
+                  " يوم على نهاية المدة"
+                : "⏰ المدة انتهت - عدادك هيبدأ من جديد عند الزيارة الجاية";
+
+
+    } catch (error) {
+
+        console.error(error);
+
+    }
+
+}
+
+
+// =====================================
+// البحث عن العميل
+// =====================================
+
+async function findCustomer(phone) {
+
+    const result =
+        await db
+            .from("customers")
+            .select("*")
+            .eq(
+                "phone",
+                phone
+            )
+            .eq(
+                "store_id",
+                currentStore.id
+            )
+            .maybeSingle();
+
+
+    if (result.error) {
+
+        throw result.error;
+
+    }
+
+
+    return result.data;
+
+}
+
+
+// =====================================
+// تسجيل / دخول العميل
+// =====================================
+
+createButton.addEventListener(
+    "click",
+    async function () {
+
+        const name =
+            document
+                .getElementById(
+                    "name"
+                )
+                .value
+                .trim();
+
+
+        const phone =
+            document
+                .getElementById(
+                    "phone"
+                )
+                .value
+                .trim();
+
+
+        showError("");
+
+
+        if (!name || !phone) {
+
+            showError(
+                "الرجاء إدخال الاسم ورقم الهاتف."
+            );
+
+            return;
+
+        }
+
+
+        if (!currentStore) {
+
+            showError(
+                "لم يتم تحميل المشروع."
+            );
+
+            return;
+
+        }
+
+
+        createButton.disabled =
+            true;
+
+        createButton.textContent =
+            "جاري التحقق والبحث...";
+
+
+        try {
+
+            let customer =
+                await findCustomer(
+                    phone
+                );
+
+
+            if (customer) {
+
+                displayCard(
+                    customer
+                );
+
+                return;
+
+            }
+
+
+            const newMemberID =
+                currentStore.store_code +
+                Date.now()
+                    .toString()
+                    .slice(-4);
+
+
+            const insertResult =
+                await db
+                    .from("customers")
+                    .insert({
+
+                        member_id:
+                            newMemberID,
+
+                        name:
+                            name,
+
+                        phone:
+                            phone,
+
+                        visits:
+                            0,
+
+                        points:
+                            0,
+
+                        marketing_opt_in:
+                            false,
+
+                        store_code:
+                            currentStore.store_code,store_id:
+                            currentStore.id
+
+                    })
+                    .select()
+                    .single();
+
+
+            if (
+                insertResult.error
+            ) {
+
+                throw insertResult.error;
+
+            }
+
+
+            customer =
+                insertResult.data;
+
+
+            displayCard(
+                customer
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                error
+            );
+
+            showError(
+                "حدث خطأ: " +
+                error.message
+            );
+
+
+        } finally {
+
+            createButton.disabled =
+                false;
+
+            createButton.textContent =
+                "عرض البطاقة / تسجيل";
+
+        }
+
+    }
+);
+
+
+// =====================================
+// الاشتراك بالعروض
+// =====================================
+
+document
+    .getElementById(
+        "btnYes"
+    )
+    .addEventListener(
+        "click",
+        async function () {
+
+            const memberID =
+                document
+                    .getElementById(
+                        "displayMemberID"
+                    )
+                    .textContent;
+
+
+            const button =
+                document.getElementById(
+                    "btnYes"
+                );
+
+
+            button.disabled =
+                true;
+
+            button.textContent =
+                "جاري الحفظ...";
+
+
+            try {
+
+                const result =
+                    await db
+                        .from("customers")
+                        .update({
+
+                            marketing_opt_in:
+                                true
+
+                        })
+                        .eq(
+                            "member_id",
+                            memberID
+                        )
+                        .eq(
+                            "store_id",
+                            currentStore.id
+                        );
+
+
+                if (
+                    result.error
+                ) {
+
+                    throw result.error;
+
+                }
+
+
+                marketingSection.innerHTML =
+                    "<p class='success'>" +
+                    "تم الاشتراك بنجاح! شكراً لك." +
+                    "</p>";
+
+
+            } catch (error) {
+
+                console.error(
+                    error
+                );
+
+                alert(
+                    "حدث خطأ، حاول مرة أخرى."
+                );
+
+
+                button.disabled =
+                    false;
+
+                button.textContent =
+                    "نعم، أرغب";
+
+            }
+
+        }
+    );
+
+
+// =====================================
+// لا شكراً
+// =====================================
+
+document
+    .getElementById(
+        "btnNo"
+    )
+    .addEventListener(
+        "click",
+        function () {
+
+            marketingSection.style.display =
+                "none";
+
+        }
+    );
+
+
+// =====================================
+// تسجيل بطاقة جديدة
+// =====================================
+
+document
+    .getElementById(
+        "newCustomerButton"
+    )
+    .addEventListener(
+        "click",
+        function () {
+
+            location.reload();
+
+        }
+    );
+
+
+// =====================================
+// تشغيل الصفحة
+// =====================================
+
+loadProject();
+
+
+</script>
+
+</body>
+
+</html>
