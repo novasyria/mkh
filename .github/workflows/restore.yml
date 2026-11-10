@@ -1,47 +1,77 @@
-name: Nova Store EMERGENCY Restore
+name: Supabase Restore
 
 on:
   workflow_dispatch:
     inputs:
-      restore_date:
-        description: 'تاريخ النسخة (YYYY-MM-DD)'
+      backup_file:
+        description: 'اسم الملف في الـ Bucket (مثل backup-2026-11-10-0901.dump)'
         required: true
-        type: string
       confirm:
-        description: 'اكتب YES للتأكيد'
+        description: 'اكتب RESTORE للتأكيد'
         required: true
-        type: string
 
 jobs:
   restore:
+    if: ${{ inputs.confirm == 'RESTORE' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
-      - name: التحقق من التأكيد
-        if: inputs.confirm != 'YES' && inputs.confirm != 'yes'
+      - name: Install PostgreSQL 17 client
+        timeout-minutes: 10
         run: |
-          echo "❌ تم الإلغاء — لازم تكتب YES بالضبط للتشغيل"
-          exit 1
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: تثبيت المكتبات
-        run: npm install
-
-      - name: تشغيل الاسترجاع
-        run: node restore.js
+      - name: Download backup from B2
+        timeout-minutes: 10
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
           B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
-          B2_BUCKET: ${{ secrets.B2_BUCKET }}
-          B2_REGION: ${{ secrets.B2_REGION }}
-          RESTORE_DATE: ${{ inputs.restore_date }}
-          RESTORE_CONFIRM: ${{ inputs.confir
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          BACKUP_FILE: ${{ inputs.backup_file }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          export AWS_ACCESS_KEY_ID="$(printf '%s' "$B2_KEY_ID" | tr -d '[:space:]')"
+          export AWS_SECRET_ACCESS_KEY="$(printf '%s' "$B2_APPLICATION_KEY" | tr -d '[:space:]')"
+          BUCKET="$(printf '%s' "$B2_BUCKET_NAME" | tr -d '[:space:]')"
+          ENDPOINT="$(printf '%s' "$B2_ENDPOINT" | tr -d '[:space:]')"
+          FILE="$(printf '%s' "$BACKUP_FILE" | tr -d '[:space:]')"
+          export AWS_DEFAULT_REGION="$(echo "$ENDPOINT" | sed -E 's#https?://s3\.([^.]+)\.backblazeb2\.com.*#\1#')"
+          echo "Region: $AWS_DEFAULT_REGION"
+
+          aws s3 cp "s3://${BUCKET}/${FILE}" backup.dump --endpoint-url "$ENDPOINT"
+
+          test -s backup.dump
+          ls -lh backup.dump
+          /usr/lib/postgresql/17/bin/pg_restore --list backup.dump > /dev/null
+          echo "Backup file is valid"
+
+      - name: Restore database
+        timeout-minutes: 30
+        env:
+          RESTORE_DB_URL: ${{ secrets.SUPABASE_RESTORE_DB_URL }}
+        run: |
+          URL="$(printf '%s' "$RESTORE_DB_URL" | tr -d '[:space:]')"
+
+          set +e
+          /usr/lib/postgresql/17/bin/pg_restore \
+            --no-owner --no-privileges \
+            --clean --if-exists \
+            --schema=public \
+            --verbose -j 4 \
+            -d "$URL" backup.dump
+          code=$?
+          set -e
+          echo "pg_restore exit code: $code (1 = تحذيرات عادية غالباً)"
+
+          COUNT="$(/usr/lib/postgresql/17/bin/psql "$URL" -t -A -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")"
+          echo "Tables in public schema: $COUNT"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ما في جداول بعد الاسترجاع، العملية فشلت"
+            exit 1
+          fi
