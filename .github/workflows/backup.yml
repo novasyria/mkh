@@ -1,57 +1,57 @@
-name: Supabase Backup
+name: Supabase Restore
 
 on:
-  schedule:
-    - cron: "0 2 * * *"   # كل يوم 02:00 UTC
-  workflow_dispatch:       # تشغيل يدوي
+  workflow_dispatch:
+    inputs:
+      backup_file:
+        description: 'اسم الملف في الـ Bucket (مثل backup-2026-11-09-1128.dump)'
+        required: true
+      confirm:
+        description: 'اكتب RESTORE للتأكيد'
+        required: true
 
 jobs:
-  backup:
+  restore:
+    if: ${{ inputs.confirm == 'RESTORE' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Install PostgreSQL 17 client
+        timeout-minutes: 10
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl ca-certificates lsb-release
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
 
-      - name: Dump database
+      - name: Download backup from B2
+        timeout-minutes: 10
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          set -euo pipefail
-          if [ -z "$SUPABASE_DB_URL" ]; then echo "SUPABASE_DB_URL is empty"; exit 1; fi
-          PGDUMP=/usr/lib/postgresql/17/bin/pg_dump
-          $PGDUMP --version
-          FILE="backup-$(date -u +%Y-%m-%d_%H-%M).sql.gz"
-          $PGDUMP "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "$FILE"
-          SIZE=$(stat -c%s "$FILE")
-          echo "Backup size: $SIZE bytes"
-          if [ "$SIZE" -lt 1000 ]; then echo "Dump looks empty"; exit 1; fi
-          echo "FILE=$FILE" >> "$GITHUB_ENV"
-
-      - name: Upload to Backblaze B2
-        env:
-          RAW_KEY_ID: ${{ secrets.B2_KEY_ID }}
-          RAW_APP_KEY: ${{ secrets.B2_APPLICATION_KEY }}
-          RAW_REGION: ${{ secrets.B2_REGION }}
-          RAW_BUCKET: ${{ secrets.B2_BUCKET }}
-          RAW_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
-          set -euo pipefail
-          clean() { printf '%s' "$1" | tr -d '[:space:]'; }
-          export AWS_ACCESS_KEY_ID="$(clean "$RAW_KEY_ID")"
-          export AWS_SECRET_ACCESS_KEY="$(clean "$RAW_APP_KEY")"
-          export AWS_DEFAULT_REGION="$(clean "$RAW_REGION")"
-          B2_BUCKET="$(clean "$RAW_BUCKET")"
-          B2_ENDPOINT="$(clean "$RAW_ENDPOINT")"
-          if [ -z "$B2_BUCKET" ]; then echo "B2_BUCKET is empty"; exit 1; fi
-          aws s3 cp "$FILE" "s3://$B2_BUCKET/daily/$FILE" --endpoint-url "$B2_ENDPOINT"
-          echo "Uploaded $FILE"echo "KeyID length: ${#AWS_ACCESS_KEY_ID}, starts with: ${AWS_ACCESS_KEY_ID:0:2}"
-echo "AppKey length: ${#AWS_SECRET_ACCESS_KEY}, starts with: ${AWS_SECRET_ACCESS_KEY:0:1}"
+          export AWS_ACCESS_KEY_ID="$(printf '%s' "$B2_KEY_ID" | tr -d '[:space:]')"
+          export AWS_SECRET_ACCESS_KEY="$(printf '%s' "$B2_APPLICATION_KEY" | tr -d '[:space:]')"
+          BUCKET="$(printf '%s' "$B2_BUCKET_NAME" | tr -d '[:space:]')"
+          ENDPOINT="$(printf '%s' "$B2_ENDPOINT" | tr -d '[:space:]')"
+          export AWS_DEFAULT_REGION="$(echo "$ENDPOINT" | sed -E 's#https?://s3\.([^.]+)\.backblazeb2\.com.*#\1#')"
+
+          aws s3 cp "s3://${BUCKET}/${{ inputs.backup_file }}" backup.dump \
+            --endpoint-url "$ENDPOINT"
+          ls -lh backup.dump
+
+      - name: Restore database
+        timeout-minutes: 30
+        env:
+          RESTORE_DB_URL: ${{ secrets.SUPABASE_RESTORE_DB_URL }}
+        run: |
+          /usr/lib/postgresql/17/bin/pg_restore \
+            --no-owner --no-privileges \
+            --clean --if-exists \
+            --schema=public \
+            --verbose -j 4 \
+            -d "$RESTORE_DB_URL" backup.dump
