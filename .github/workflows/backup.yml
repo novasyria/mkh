@@ -1,31 +1,30 @@
-name: Supabase Restore
+name: Supabase Backup
 
 on:
-  workflow_dispatch:
-    inputs:
-      backup_file:
-        description: 'اسم الملف في الـ Bucket (مثل backup-2026-11-09-1128.dump)'
-        required: true
-      confirm:
-        description: 'اكتب RESTORE للتأكيد'
-        required: true
+  schedule:
+    - cron: '0 2 * * *'   # كل يوم 2 الصبح UTC
+  workflow_dispatch:       # لتشغيله يدوي للتجربة
 
 jobs:
-  restore:
-    if: ${{ inputs.confirm == 'RESTORE' }}
+  backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     steps:
       - name: Install PostgreSQL 17 client
-        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
 
-      - name: Download backup from B2
-        timeout-minutes: 10
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges -F c -f backup.dump
+          ls -lh backup.dump
+
+      - name: Upload to Backblaze B2
         env:
           B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
@@ -38,20 +37,11 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$(printf '%s' "$B2_APPLICATION_KEY" | tr -d '[:space:]')"
           BUCKET="$(printf '%s' "$B2_BUCKET_NAME" | tr -d '[:space:]')"
           ENDPOINT="$(printf '%s' "$B2_ENDPOINT" | tr -d '[:space:]')"
+
+          # استخراج المنطقة تلقائياً من الـ Endpoint
           export AWS_DEFAULT_REGION="$(echo "$ENDPOINT" | sed -E 's#https?://s3\.([^.]+)\.backblazeb2\.com.*#\1#')"
+          echo "Region: $AWS_DEFAULT_REGION"
 
-          aws s3 cp "s3://${BUCKET}/${{ inputs.backup_file }}" backup.dump \
+          aws s3 cp backup.dump \
+            "s3://${BUCKET}/backup-$(date +%Y-%m-%d-%H%M).dump" \
             --endpoint-url "$ENDPOINT"
-          ls -lh backup.dump
-
-      - name: Restore database
-        timeout-minutes: 30
-        env:
-          RESTORE_DB_URL: ${{ secrets.SUPABASE_RESTORE_DB_URL }}
-        run: |
-          /usr/lib/postgresql/17/bin/pg_restore \
-            --no-owner --no-privileges \
-            --clean --if-exists \
-            --schema=public \
-            --verbose -j 4 \
-            -d "$RESTORE_DB_URL" backup.dump
