@@ -3,7 +3,7 @@ name: Supabase Backup
 on:
   schedule:
     - cron: "0 2 * * *"   # كل يوم 02:00 UTC
-  workflow_dispatch:       # تشغيل يدوي للتجربة
+  workflow_dispatch:       # تشغيل يدوي
 
 jobs:
   backup:
@@ -23,18 +23,25 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "SUPABASE_DB_URL is empty"; exit 1; fi
           FILE="backup-$(date -u +%Y-%m-%d_%H-%M).sql.gz"
           pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "$FILE"
-          ls -lh "$FILE"
+          SIZE=$(stat -c%s "$FILE")
+          echo "Backup size: $SIZE bytes"
+          if [ "$SIZE" -lt 1000 ]; then echo "Dump looks empty"; exit 1; fi
           echo "FILE=$FILE" >> "$GITHUB_ENV"
 
       - name: Upload to Backblaze B2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+          AWS_DEFAULT_REGION: ${{ secrets.B2_REGION }}
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          B2_BUCKET: ${{ secrets.B2_BUCKET }}
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
         run: |
-          aws s3 cp "$FILE" "s3://${{ secrets.B2_BUCKET_NAME }}/daily/$FILE" \
-            --endpoint-url "${{ secrets.B2_ENDPOINT }}"
+          if [ -z "$B2_BUCKET" ]; then echo "B2_BUCKET is empty"; exit 1; fi
+          aws s3 cp "$FILE" "s3://$B2_BUCKET/daily/$FILE" --endpoint-url "$B2_ENDPOINT"
+          echo "Uploaded $FILE"
