@@ -53,4 +53,5 @@ jobs:
           B2_ENDPOINT="$(clean "$RAW_ENDPOINT")"
           if [ -z "$B2_BUCKET" ]; then echo "B2_BUCKET is empty"; exit 1; fi
           aws s3 cp "$FILE" "s3://$B2_BUCKET/daily/$FILE" --endpoint-url "$B2_ENDPOINT"
-          echo "Uploaded $FILE"
+          echo "Uploaded $FILE"echo "KeyID length: ${#AWS_ACCESS_KEY_ID}, starts with: ${AWS_ACCESS_KEY_ID:0:2}"
+echo "AppKey length: ${#AWS_SECRET_ACCESS_KEY}, starts with: ${AWS_SECRET_ACCESS_KEY:0:1}"
