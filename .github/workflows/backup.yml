@@ -1,34 +1,40 @@
-name: Nova Store Backup
+name: Supabase Backup
 
 on:
   schedule:
-    # كل يوم الساعة 2:00 صباحاً بتوقيت UTC (تقدر تغيّر الوقت لاحقاً)
-    - cron: "0 2 * * *"
-  workflow_dispatch: {}
+    - cron: "0 2 * * *"   # كل يوم 02:00 UTC
+  workflow_dispatch:       # تشغيل يدوي للتجربة
 
 jobs:
   backup:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run backup script
+      - name: Dump database
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
-          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
-          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
-          B2_BUCKET: ${{ secrets.B2_BUCKET }}
-          B2_REGION: ${{ secrets.B2_REGION }}
-        run: node backup.js
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          FILE="backup-$(date -u +%Y-%m-%d_%H-%M).sql.gz"
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "$FILE"
+          ls -lh "$FILE"
+          echo "FILE=$FILE" >> "$GITHUB_ENV"
+
+      - name: Upload to Backblaze B2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: |
+          aws s3 cp "$FILE" "s3://${{ secrets.B2_BUCKET_NAME }}/daily/$FILE" \
+            --endpoint-url "${{ secrets.B2_ENDPOINT }}"
