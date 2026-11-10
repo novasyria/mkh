@@ -1,49 +1,20 @@
-name: Supabase Backup
-
-on:
-  schedule:
-    - cron: "0 2 * * *"   # كل يوم 02:00 UTC
-  workflow_dispatch:       # تشغيل يدوي
-
-jobs:
-  backup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install PostgreSQL 17 client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl ca-certificates lsb-release
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-
-      - name: Dump database
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          set -euo pipefail
-          if [ -z "$SUPABASE_DB_URL" ]; then echo "SUPABASE_DB_URL is empty"; exit 1; fi
-          PGDUMP=/usr/lib/postgresql/17/bin/pg_dump
-          $PGDUMP --version
-          FILE="backup-$(date -u +%Y-%m-%d_%H-%M).sql.gz"
-          $PGDUMP "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "$FILE"
-          SIZE=$(stat -c%s "$FILE")
-          echo "Backup size: $SIZE bytes"
-          if [ "$SIZE" -lt 1000 ]; then echo "Dump looks empty"; exit 1; fi
-          echo "FILE=$FILE" >> "$GITHUB_ENV"
-
       - name: Upload to Backblaze B2
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.B2_REGION }}
+          RAW_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          RAW_APP_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          RAW_REGION: ${{ secrets.B2_REGION }}
+          RAW_BUCKET: ${{ secrets.B2_BUCKET }}
+          RAW_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
           AWS_REQUEST_CHECKSUM_CALCULATION: when_required
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-          B2_BUCKET: ${{ secrets.B2_BUCKET }}
-          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
         run: |
+          set -euo pipefail
+          clean() { printf '%s' "$1" | tr -d '[:space:]'; }
+          export AWS_ACCESS_KEY_ID="$(clean "$RAW_KEY_ID")"
+          export AWS_SECRET_ACCESS_KEY="$(clean "$RAW_APP_KEY")"
+          export AWS_DEFAULT_REGION="$(clean "$RAW_REGION")"
+          B2_BUCKET="$(clean "$RAW_BUCKET")"
+          B2_ENDPOINT="$(clean "$RAW_ENDPOINT")"
           if [ -z "$B2_BUCKET" ]; then echo "B2_BUCKET is empty"; exit 1; fi
           aws s3 cp "$FILE" "s3://$B2_BUCKET/daily/$FILE" --endpoint-url "$B2_ENDPOINT"
           echo "Uploaded $FILE"
