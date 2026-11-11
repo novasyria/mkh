@@ -10,7 +10,10 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>K Loyalty - الدخول</title>
+    <title>NUQTH - الدخول</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -240,7 +243,7 @@
 
 
     <div class="title">
-        K Loyalty
+        <span dir="ltr">NUQTH<span aria-hidden="true" style="font-size:.5em;vertical-align:middle;">·</span></span>
     </div>
 
 
@@ -340,11 +343,53 @@ const db =
 // رموز الإدارة العامة
 // =====================================
 
-const GENERAL_CODES = [
-
-    "4321"
-
+const GENERAL_CODE_HASHES = [
+    "fe2592b42a727e977f055947385b709cc82b16b9a87f88c6abf3900d65d0cdc3"
 ];
+
+
+async function isGeneralCode(code) {
+    if (!window.crypto || !window.crypto.subtle) {
+        return false;
+    }
+    const data = new TextEncoder().encode(code);
+    const buf = await window.crypto.subtle.digest("SHA-256", data);
+    const hex = Array.from(new Uint8Array(buf))
+        .map(function (b) { return b.toString(16).padStart(2, "0"); })
+        .join("");
+    return GENERAL_CODE_HASHES.includes(hex);
+}
+
+
+// تحديد محاولات الدخول الخاطئة: 5 محاولات خلال 10 دقائق ثم انتظار دقيقة
+const FAIL_KEY = "k_login_fails";
+
+function readFails() {
+    try {
+        const arr = JSON.parse(localStorage.getItem(FAIL_KEY) || "[]");
+        const cut = Date.now() - 600000;
+        return Array.isArray(arr)
+            ? arr.filter(function (x) { return typeof x === "number" && x > cut; })
+            : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function lockSecondsLeft() {
+    const f = readFails();
+    if (f.length < 5) return 0;
+    const left = Math.ceil((f[f.length - 1] + 60000 - Date.now()) / 1000);
+    return left > 0 ? left : 0;
+}
+
+function recordFail() {
+    const f = readFails();
+    f.push(Date.now());
+    try {
+        localStorage.setItem(FAIL_KEY, JSON.stringify(f.slice(-10)));
+    } catch (e) {}
+}
 
 
 let savedDestination = null;
@@ -356,6 +401,11 @@ let savedDestination = null;
 
 const SAVED_DEST_KEY =
     "k_loyalty_saved_dest";
+
+
+// رمز الدخول يُحفظ محلياً فقط لأصحاب الكاشير/الإدارة (لا يُرسل للعميل)
+const ACCESS_CODE_KEY =
+    "k_loyalty_access_code";
 
 
 // =====================================
@@ -488,17 +538,93 @@ async function loadSavedProject() {
         }
 
 
-        const result =
-            await db
-                .from("stores")
-                .select(
-                    "store_code, store_name, is_active"
-                )
-                .eq(
-                    "store_code",
-                    savedCode
-                )
-                .maybeSingle();
+        const savedRole =
+            savedDest.indexOf("cashier.html") === 0
+                ? "cashier"
+                : (savedDest.indexOf("owner.html") === 0
+                    ? "admin"
+                    : "client");
+
+
+        let result;
+
+
+        if (savedRole === "client") {
+
+            // صفحة العميل تعمل بكود المشروع العام فقط
+            const rpcResult =
+                await db.rpc(
+                    "client_store",
+                    { p_store_code: savedCode }
+                );
+
+
+            const store =
+                (rpcResult.data && rpcResult.data.ok)
+                    ? rpcResult.data.store
+                    : null;
+
+
+            result = {
+                data: store
+                    ? {
+                        store_code: store.store_code,
+                        store_name: store.store_name,
+                        is_active: store.is_active
+                    }
+                    : null,
+                error: rpcResult.error || null
+            };
+
+        } else {
+
+            // الكاشير والإدارة يحتاجان رمزاً سرياً محفوظاً من تسجيل الدخول
+            const accessCode =
+                localStorage.getItem(
+                    ACCESS_CODE_KEY
+                );
+
+
+            if (!accessCode) {
+
+                localStorage.removeItem(
+                    SAVED_DEST_KEY
+                );
+
+                return;
+
+            }
+
+
+            const rpcResult =
+                await db.rpc(
+                    "app_login",
+                    { p_code: accessCode }
+                );
+
+
+            const auth =
+                rpcResult.data || {};
+
+
+            const valid =
+                auth.ok === true &&
+                auth.role === savedRole &&
+                auth.store_code === savedCode;
+
+
+            result = {
+                data: valid
+                    ? {
+                        store_code: auth.store_code,
+                        store_name: auth.store_name,
+                        is_active: true
+                    }
+                    : null,
+                error: rpcResult.error || null
+            };
+
+        }
 
 
         if (result.error) {
@@ -587,9 +713,19 @@ async function login() {
     // الإدارة العامة
     // =================================
 
-    if (
-        GENERAL_CODES.includes(code)
-    ) {
+    const waitSec = lockSecondsLeft();
+
+    if (waitSec > 0) {
+
+        errorMsg.textContent =
+            "محاولات خاطئة كثيرة. حاول بعد " + waitSec + " ثانية.";
+
+        return;
+
+    }
+
+
+    if (await isGeneralCode(code)) {
 
         sessionStorage.setItem(
             "k_general_login",
@@ -622,24 +758,58 @@ async function login() {
         // 1 - الكاشير
         // =================================
 
-        const cashierResult =
-            await db
-                .from("stores")
-                .select(
-                    "id, store_code, is_active"
-                )
-                .eq(
-                    "code_cashier",
-                    code
-                )
-                .maybeSingle();
+        const loginResult =
+            await db.rpc(
+                "app_login",
+                { p_code: code }
+            );
 
 
-        if (cashierResult.error) {
+        if (loginResult.error) {
 
-            throw cashierResult.error;
+            throw loginResult.error;
 
         }
+
+
+        const auth =
+            loginResult.data || {};
+
+
+        if (auth.ok !== true) {
+
+            if (auth.error === "too_many") {
+
+                errorMsg.textContent =
+                    "محاولات كثيرة. حاول بعد قليل.";
+
+                return;
+
+            }
+
+
+            if (auth.error === "inactive") {
+
+                errorMsg.textContent =
+                    "هذا المشروع متوقف حالياً.";
+
+                return;
+
+            }
+
+        }
+
+
+        const cashierResult = {
+            data: (auth.ok === true && auth.role === "cashier")
+                ? {
+                    id: 0,
+                    store_code: auth.store_code,
+                    is_active: true
+                }
+                : null,
+            error: null
+        };
 
 
         if (cashierResult.data) {
@@ -658,6 +828,13 @@ async function login() {
                 return;
 
             }
+
+
+            // نحفظ رمز الكاشير سرياً لاستخدامه في طلبات السيرفر
+            localStorage.setItem(
+                ACCESS_CODE_KEY,
+                code
+            );
 
 
             window.location.href =
@@ -684,24 +861,16 @@ async function login() {
         // 2 - إدارة المشروع
         // =================================
 
-        const adminResult =
-            await db
-                .from("stores")
-                .select(
-                    "id, store_code, is_active"
-                )
-                .eq(
-                    "code_admin",
-                    code
-                )
-                .maybeSingle();
-
-
-        if (adminResult.error) {
-
-            throw adminResult.error;
-
-        }
+        const adminResult = {
+            data: (auth.ok === true && auth.role === "admin")
+                ? {
+                    id: 0,
+                    store_code: auth.store_code,
+                    is_active: true
+                }
+                : null,
+            error: null
+        };
 
 
         if (adminResult.data) {
@@ -720,6 +889,13 @@ async function login() {
                 return;
 
             }
+
+
+            // نحفظ رمز الإدارة سرياً لاستخدامه في طلبات السيرفر
+            localStorage.setItem(
+                ACCESS_CODE_KEY,
+                code
+            );
 
 
             window.location.href =
@@ -746,24 +922,17 @@ async function login() {
         // 3 - العميل
         // =================================
 
-        const clientResult =
-            await db
-                .from("stores")
-                .select(
-                    "id, store_code, store_name, is_active"
-                )
-                .eq(
-                    "code_client",
-                    code
-                )
-                .maybeSingle();
-
-
-        if (clientResult.error) {
-
-            throw clientResult.error;
-
-        }
+        const clientResult = {
+            data: (auth.ok === true && auth.role === "client")
+                ? {
+                    id: 0,
+                    store_code: auth.store_code,
+                    store_name: auth.store_name,
+                    is_active: true
+                }
+                : null,
+            error: null
+        };
 
 
         if (clientResult.data) {
@@ -794,6 +963,11 @@ async function login() {
                     store.store_code
                 );
 
+            localStorage.removeItem(
+                ACCESS_CODE_KEY
+            );
+
+
             localStorage.setItem(
                 SAVED_DEST_KEY,
                 destURL
@@ -815,6 +989,9 @@ async function login() {
         // =================================
         // الرمز غير موجود
         // =================================
+
+        recordFail();
+
 
         errorMsg.textContent =
             "الرمز المدخل غير صحيح.";
@@ -850,6 +1027,10 @@ changeProjectButton.onclick =
 
         localStorage.removeItem(
             SAVED_DEST_KEY
+        );
+
+        localStorage.removeItem(
+            ACCESS_CODE_KEY
         );
 
         savedDestination =

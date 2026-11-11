@@ -4,7 +4,10 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K Loyalty - لوحة إدارة المشروع</title>
+    <title>NUQTH - لوحة إدارة المشروع</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
                                                
     <style>
@@ -13,7 +16,6 @@
         .owner-card { position: relative; width: 100%; max-width: 500px; background: #151515; border: 1px solid #d4af37; border-radius: 24px; padding: 30px 22px; text-align: center; box-shadow: 0 10px 40px rgba(212, 175, 55, 0.15); }
         .logo { width: 65px; height: 65px; margin: 0 auto 18px; border-radius: 50%; background: #d4af37; color: #111; display: flex; justify-content: center; align-items: center; font-size: 26px; font-weight: bold; }
         h1 { color: #d4af37; margin-bottom: 4px; }
-        .project-code-badge { background: #333; color: #d4af37; padding: 3px 10px; border-radius: 12px; font-size: 12px; display: inline-block; margin-bottom: 15px; }
         .owner-logout { position: absolute; top: 16px; left: 16px; background: #333; color: white; border: 1px solid #444; border-radius: 8px; padding: 7px 11px; font-size: 12px; cursor: pointer; }
         .subscription-details { text-align: right; background: #202020; border: 1px solid #333; border-radius: 14px; padding: 14px; margin-bottom: 20px; }
         .subscription-details h2 { color: #d4af37; text-align: center; font-size: 16px; margin-bottom: 10px; }
@@ -22,7 +24,7 @@
         .subscription-row span:first-child { color: #999; }
         .subscription-row span:last-child { color: #eee; font-weight: bold; }
         
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 25px; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 25px; }
         .stat { background: #202020; border: 1px solid #333; border-radius: 14px; padding: 12px 5px; }
         .stat strong { display: block; color: #d4af37; font-size: 20px; margin-bottom: 4px; }
         .stat span { color: #999; font-size: 11px; }
@@ -50,17 +52,17 @@
 
         button.save-btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: #d4af37; color: #111; font-size: 16px; font-weight: bold; cursor: pointer; }
         button.save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        a.subscribe-btn { display: block; width: 100%; padding: 14px; margin-top: 12px; border-radius: 10px; background: #d4af37; color: #111; font-size: 16px; font-weight: bold; text-decoration: none; }
         #saveMessage { text-align: center; margin-top: 10px; min-height: 20px; font-size: 13px; }
+        .telegram-btn { display: block; width: 100%; padding: 14px; border-radius: 10px; background: #2AABEE; color: #fff; font-size: 16px; font-weight: bold; text-align: center; text-decoration: none; }
+        .telegram-btn:hover { background: #1d9bdc; }
     </style>
 </head>
 
 <body>
     <main class="owner-card">
         <button id="ownerLogoutButton" class="owner-logout" type="button">تسجيل خروج</button>
-        <div class="logo">K</div>
+        <div class="logo">N</div>
         <h1 id="storeTitle">إدارة المشروع</h1>
-        <div class="project-code-badge" id="projectBadge">كود المشروع: -</div>
 
         <section class="subscription-details" aria-label="بيانات الاشتراك">
             <h2>بيانات الاشتراك</h2>
@@ -72,7 +74,7 @@
 
         <section class="stats">
             <div class="stat"><strong id="customersCount">0</strong><span>العملاء</span></div>
-            <div class="stat"><strong id="visitsCount">0</strong><span>الزيارات</span></div><div class="stat"><strong id="pointsCount">0</strong><span>النقاط</span></div>
+            <div class="stat"><strong id="visitsCount">0</strong><span>الزيارات</span></div>
             <div class="stat" style="border-color: #28a745;"><strong id="offersCount" style="color: #28a745;">0</strong><span>العروض</span></div>
         </section>
 
@@ -116,19 +118,46 @@
             <div id="saveMessage"></div>
         </section>
 
-        <a class="subscribe-btn" href="https://t.me/+963948572661" target="_blank" rel="noopener noreferrer">
-            للاشتراك أو تجديد الاشتراك تواصل معنا عبر تليجرام
-        </a>
+        <a class="telegram-btn" href="https://t.me/+963948572661" target="_blank" rel="noopener noreferrer">✈️ تواصل معنا عبر تلجرام</a>
     </main>
 
     <script>
+        // ---- بوابة الدخول: لا تفتح الصفحة بدون تسجيل دخول من index.html ----
+        (function () {
+            var ok = false;
+            try {
+                var code = new URLSearchParams(location.search).get('project') || '';
+                var saved = localStorage.getItem('k_loyalty_saved_dest');
+                var access = localStorage.getItem('k_loyalty_access_code');
+                if (code && saved && access) {
+                    var u = new URL(saved, location.href);
+                    ok = /\/owner\.html$/.test(u.pathname) && u.searchParams.get('project') === code;
+                }
+            } catch (e) { ok = false; }
+            if (!ok) {
+                location.replace('index.html');
+                throw new Error('unauthorized');
+            }
+        })();
+
         const SUPABASE_URL = "https://ofylogxewabdiemaifep.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_UzOHSK-Jk_5KVVu0TEcFxQ_bOjlAgFQ";
         const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
         const SAVED_DEST_KEY = "k_loyalty_saved_dest";
+        const ACCESS_CODE_KEY = "k_loyalty_access_code";
+        const accessCode = localStorage.getItem(ACCESS_CODE_KEY) || "";
+
+        function logoutOwner() {
+            try {
+                localStorage.removeItem(SAVED_DEST_KEY);
+                localStorage.removeItem(ACCESS_CODE_KEY);
+            } catch (e) {}
+            window.location.replace("index.html");
+        }
 
         document.getElementById("ownerLogoutButton").addEventListener("click", function () {
             localStorage.removeItem(SAVED_DEST_KEY);
+            localStorage.removeItem(ACCESS_CODE_KEY);
             window.location.href = "index.html";
         });
 
@@ -138,30 +167,33 @@
         if (!currentProjectCode) {
             alert("خطأ: لم يتم التعرف على كود المشروع في الرابط!");
         } else {
-            document.getElementById("projectBadge").textContent = "كود المشروع: " + currentProjectCode;
-            document.getElementById("storeTitle").textContent = "إدارة المشروع (" + currentProjectCode + ")";
+            document.getElementById("storeTitle").textContent = "إدارة المشروع";
         }
 
-        async function loadSettings() {
-            if (!currentProjectCode || !db) return;
+        async function verifyOwner() {
+            if (!currentProjectCode || !db || !accessCode) return false;
             try {
-                const { data, error } = await db.from("stores").select("*").eq("store_code", currentProjectCode).maybeSingle();
-                if (data) {
-                    document.getElementById("subscriptionTypeView").textContent = data.subscription_type || "شهري";
-                    document.getElementById("subscriptionStartView").textContent = formatSubscriptionDate(data.subscription_start);
-                    document.getElementById("subscriptionEndView").textContent = formatSubscriptionDate(data.subscription_end);
-                    document.getElementById("subscriptionAmountView").textContent =
-                        data.subscription_amount == null ? "-" : Number(data.subscription_amount).toLocaleString("ar");
-                    document.getElementById("pointsPerVisit").value = data.points_per_visit || 10;
-                    document.getElementById("rewardPoints").value = data.reward_points || 100;
-                    document.getElementById("rewardName").value = data.reward_name || "خصم 10%";
-                    document.getElementById("visitPeriodDays").value = data.visit_period_days || 30;
-                    document.getElementById("visitTarget").value = data.visit_target || 4;
-                    return;
-                }
+                const { data, error } = await db.rpc("app_login", { p_code: accessCode });
+                if (error) throw error;
+                const auth = data || {};
+                return auth.ok === true && auth.role === "admin" && auth.store_code === currentProjectCode;
             } catch (e) {
-                console.error("خطأ جلب الإعدادات:", e);
+                console.error("Owner verification failed:", e);
+                return false;
             }
+        }
+
+        function applyStoreInfo(data) {
+            document.getElementById("subscriptionTypeView").textContent = data.subscription_type || "شهري";
+            document.getElementById("subscriptionStartView").textContent = formatSubscriptionDate(data.subscription_start);
+            document.getElementById("subscriptionEndView").textContent = formatSubscriptionDate(data.subscription_end);
+            document.getElementById("subscriptionAmountView").textContent =
+                data.subscription_amount == null ? "-" : Number(data.subscription_amount).toLocaleString("ar");
+            document.getElementById("pointsPerVisit").value = data.points_per_visit || 10;
+            document.getElementById("rewardPoints").value = data.reward_points || 100;
+            document.getElementById("rewardName").value = data.reward_name || "خصم 10%";
+            document.getElementById("visitPeriodDays").value = data.visit_period_days || 30;
+            document.getElementById("visitTarget").value = data.visit_target || 4;
         }
 
         function formatSubscriptionDate(value) {
@@ -177,40 +209,40 @@
 
             const saveBtn = this;
             const msg = document.getElementById("saveMessage");
-            const pVisit = Number(document.getElementById("pointsPerVisit").value) || 10;
-            const rPoints = Number(document.getElementById("rewardPoints").value) || 100;
-            const rName = document.getElementById("rewardName").value.trim() || "خصم 10%";
-            const periodDays = Number(document.getElementById("visitPeriodDays").value) || 30;
-            const target = Number(document.getElementById("visitTarget").value) || 4;
+            const clampInt = function (id, def, max) {
+                const n = Math.floor(Number(document.getElementById(id).value));
+                return (Number.isFinite(n) && n >= 1) ? Math.min(n, max) : def;
+            };
+            const pVisit = clampInt("pointsPerVisit", 10, 100000);
+            const rPoints = clampInt("rewardPoints", 100, 1000000);
+            const rName = (document.getElementById("rewardName").value.trim() || "خصم 10%").slice(0, 60);
+            const periodDays = clampInt("visitPeriodDays", 30, 3650);
+            const target = clampInt("visitTarget", 4, 1000);
 
             saveBtn.disabled = true;
             msg.style.color = "#d4af37";
             msg.textContent = "جاري الحفظ بالسحابة...";
 
             try {
-                const { data: store } = await db.from("stores").select("id").eq("store_code", currentProjectCode).maybeSingle();let error;
-                if (store) {
-                    const res = await db.from("stores").update({
-                        points_per_visit: pVisit,
-                        reward_points: rPoints,
-                        reward_name: rName,
-                        visit_period_days: periodDays,
-                        visit_target: target
-                    }).eq("store_code", currentProjectCode);
-                    error = res.error;
-                } else {
-                    const res = await db.from("stores").insert({
-                        store_code: currentProjectCode,
-                        points_per_visit: pVisit,
-                        reward_points: rPoints,
-                        reward_name: rName,
-                        visit_period_days: periodDays,
-                        visit_target: target
-                    });
-                    error = res.error;
-                }
+                const { data, error } = await db.rpc("owner_update_settings", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_points_per_visit: pVisit,
+                    p_reward_points: rPoints,
+                    p_reward_name: rName,
+                    p_visit_period_days: periodDays,
+                    p_visit_target: target
+                });
 
                 if (error) throw error;
+                const payload = data || {};
+                if (!payload.ok) {
+                    if (payload.error === "unauthorized") {
+                        logoutOwner();
+                        return;
+                    }
+                    throw new Error(payload.error || "save_failed");
+                }
 
                 msg.style.color = "#76e39b";
                 msg.textContent = "تم حفظ الإعدادات بنجاح وتحديث الكاشير ✅";
@@ -227,8 +259,13 @@
         async function markAsAdded(memberID) {
             if (!db) return;
             try {
-                const { error } = await db.from("customers").update({ added_to_group: true }).eq("member_id", memberID);
+                const { data, error } = await db.rpc("owner_mark_added", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_member_id: memberID
+                });
                 if (error) throw error;
+                if (!data || !data.ok) throw new Error("failed");
                 await loadData();
             } catch (err) {
                 console.error("خطأ التحديث:", err);
@@ -240,25 +277,38 @@
             const tbody = document.getElementById("subscribersTable");
 
             try {
-                const { data: customers, error } = await db.from("customers").select("*").eq("store_code", currentProjectCode);
+                const { data, error } = await db.rpc("owner_get", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode
+                });
                 if (error) throw error;
+
+                const payload = data || {};
+                if (!payload.ok) {
+                    if (payload.error === "unauthorized") {
+                        logoutOwner();
+                        return;
+                    }
+                    throw new Error(payload.error || "failed");
+                }
+
+                applyStoreInfo(payload.store || {});
+                const customers = payload.customers || [];
 
                 if (!customers || customers.length === 0) {
                     tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #888;'>لا يوجد عملاء حتى الآن</td></tr>";
                     return;
                 }
 
-                let totalVisits = 0, totalPoints = 0, offersSubscribers = [];
+                let totalVisits = 0, offersSubscribers = [];
 
                 customers.forEach(user => {
                     totalVisits += Number(user.visits || 0);
-                    totalPoints += Number(user.points || 0);
                     if (user.marketing_opt_in) offersSubscribers.push(user);
                 });
 
                 document.getElementById("customersCount").textContent = customers.length;
                 document.getElementById("visitsCount").textContent = totalVisits;
-                document.getElementById("pointsCount").textContent = totalPoints;
                 document.getElementById("offersCount").textContent = offersSubscribers.length;
 
                 tbody.innerHTML = "";
@@ -319,8 +369,14 @@
             }
         }
 
-        loadSettings();
-        loadData();
+        (async function initOwner() {
+            if (!currentProjectCode) return;
+            if (!(await verifyOwner())) {
+                logoutOwner();
+                return;
+            }
+            await loadData();
+        })();
     </script>
 </body>
 </html>

@@ -10,7 +10,10 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>K Loyalty - بطاقة الولاء</title>
+    <title>NUQTH - بطاقة الولاء</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2 https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
 
     <!-- QR Code Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
@@ -284,12 +287,12 @@
     <a id="clientLogoutLink" class="logout-link" href="index.html">تسجيل خروج</a>
 
     <div class="logo">
-        K
+        N
     </div>
 
 
     <h1>
-        K Loyalty
+        <span dir="ltr">NUQTH<span aria-hidden="true" style="font-size:.5em;vertical-align:middle;">·</span></span>
     </h1>
 
 
@@ -327,6 +330,7 @@
             type="text"
             id="name"
             placeholder="الاسم الكامل"
+            maxlength="60"
             autocomplete="off"
         >
 
@@ -335,6 +339,7 @@
             type="tel"
             id="phone"
             placeholder="رقم الهاتف"
+            maxlength="20"
             autocomplete="off"
         >
 
@@ -662,32 +667,36 @@ async function loadProject() {
 
         if (projectCode) {
 
-            result =
-                await db
-                    .from("stores")
-                    .select(
-                        "id, store_code, store_name, is_active, code_client"
-                    )
-                    .eq(
-                        "store_code",
-                        projectCode
-                    )
-                    .maybeSingle();
+            const rpcResult =
+                await db.rpc(
+                    "client_store",
+                    { p_store_code: projectCode }
+                );
+
+            result = {
+                data: (rpcResult.data && rpcResult.data.ok)
+                    ? rpcResult.data.store
+                    : null,
+                error: rpcResult.error || null
+            };
 
         }
 
 
-        else if (clientCode) {result =
-                await db
-                    .from("stores")
-                    .select(
-                        "id, store_code, store_name, is_active, code_client"
-                    )
-                    .eq(
-                        "code_client",
-                        clientCode
-                    )
-                    .maybeSingle();
+        else if (clientCode) {
+
+            const rpcResult =
+                await db.rpc(
+                    "client_store",
+                    { p_client_code: clientCode }
+                );
+
+            result = {
+                data: (rpcResult.data && rpcResult.data.ok)
+                    ? rpcResult.data.store
+                    : null,
+                error: rpcResult.error || null
+            };
 
         }
 
@@ -980,7 +989,7 @@ document
                 );
 
             link.download =
-                "K-Loyalty-" +
+                "NUQTH-" +
                 document
                     .getElementById(
                         "displayMemberID"
@@ -1082,30 +1091,14 @@ async function loadPeriodCounter(customer) {
 
     try {
 
-        const { data } =
-            await db
-                .from("stores")
-                .select(
-                    "visit_period_days, visit_target"
-                )
-                .eq(
-                    "store_code",
-                    currentStore.store_code
-                )
-                .maybeSingle();
-
-        const storeSettings =
-            data || {};
-
-
         const periodDays =
             Number(
-                storeSettings.visit_period_days || 30
+                currentStore.visit_period_days || 30
             );
 
         const target =
             Number(
-                storeSettings.visit_target || 4
+                currentStore.visit_target || 4
             );
 
         const periodVisits =
@@ -1220,31 +1213,47 @@ async function loadPeriodCounter(customer) {
 // البحث عن العميل
 // =====================================
 
-async function findCustomer(phone) {
+async function findOrCreateCustomer(name, phone) {
 
-    const result =
-        await db
-            .from("customers")
-            .select("*")
-            .eq(
-                "phone",
-                phone
-            )
-            .eq(
-                "store_id",
-                currentStore.id
-            )
-            .maybeSingle();
+    const rpcResult =
+        await db.rpc(
+            "client_card",
+            {
+                p_store_code: currentStore.store_code,
+                p_name: name,
+                p_phone: phone
+            }
+        );
 
 
-    if (result.error) {
+    if (rpcResult.error) {
 
-        throw result.error;
+        throw rpcResult.error;
 
     }
 
 
-    return result.data;
+    const payload =
+        rpcResult.data || {};
+
+
+    if (payload.ok !== true) {
+
+        const code =
+            payload.error || "failed";
+
+        const error =
+            new Error(code);
+
+        error.code =
+            code;
+
+        throw error;
+
+    }
+
+
+    return payload.customer;
 
 }
 
@@ -1288,6 +1297,16 @@ createButton.addEventListener(
 
         }
 
+        if (
+            name.length > 60 ||
+            !/^[0-9\u0660-\u0669\u06F0-\u06F9+\-\s()]{6,20}$/.test(phone)
+        ) {
+            showError(
+                "الرجاء التأكد من الاسم ورقم الهاتف."
+            );
+            return;
+        }
+
 
         if (!currentStore) {
 
@@ -1309,73 +1328,11 @@ createButton.addEventListener(
 
         try {
 
-            let customer =
-                await findCustomer(
+            const customer =
+                await findOrCreateCustomer(
+                    name,
                     phone
                 );
-
-
-            if (customer) {
-
-                displayCard(
-                    customer
-                );
-
-                return;
-
-            }
-
-
-            const newMemberID =
-                currentStore.store_code +
-                Date.now()
-                    .toString()
-                    .slice(-4);
-
-
-            const insertResult =
-                await db
-                    .from("customers")
-                    .insert({
-
-                        member_id:
-                            newMemberID,
-
-                        name:
-                            name,
-
-                        phone:
-                            phone,
-
-                        visits:
-                            0,
-
-                        points:
-                            0,
-
-                        marketing_opt_in:
-                            false,
-
-                        store_code:
-                            currentStore.store_code,store_id:
-                            currentStore.id
-
-                    })
-                    .select()
-                    .single();
-
-
-            if (
-                insertResult.error
-            ) {
-
-                throw insertResult.error;
-
-            }
-
-
-            customer =
-                insertResult.data;
 
 
             displayCard(
@@ -1389,10 +1346,47 @@ createButton.addEventListener(
                 error
             );
 
-            showError(
-                "حدث خطأ: " +
-                error.message
-            );
+            const code =
+                error && error.code;
+
+
+            if (code === "too_many") {
+
+                showError(
+                    "محاولات كثيرة. حاول بعد قليل."
+                );
+
+            } else if (code === "inactive") {
+
+                showError(
+                    "هذا المشروع متوقف حالياً."
+                );
+
+            } else if (code === "invalid_name") {
+
+                showError(
+                    "الرجاء إدخال اسم صحيح."
+                );
+
+            } else if (code === "invalid_phone") {
+
+                showError(
+                    "الرجاء إدخال رقم هاتف صحيح."
+                );
+
+            } else if (code === "rate_limited") {
+
+                showError(
+                    "محاولات كثيرة. حاول بعد قليل."
+                );
+
+            } else {
+
+                showError(
+                    "حدث خطأ، حاول مرة أخرى."
+                );
+
+            }
 
 
         } finally {
@@ -1445,22 +1439,15 @@ document
             try {
 
                 const result =
-                    await db
-                        .from("customers")
-                        .update({
-
-                            marketing_opt_in:
-                                true
-
-                        })
-                        .eq(
-                            "member_id",
-                            memberID
-                        )
-                        .eq(
-                            "store_id",
-                            currentStore.id
-                        );
+                    await db.rpc(
+                        "client_opt_in",
+                        {
+                            p_store_code:
+                                currentStore.store_code,
+                            p_member_id:
+                                memberID
+                        }
+                    );
 
 
                 if (
@@ -1468,6 +1455,18 @@ document
                 ) {
 
                     throw result.error;
+
+                }
+
+
+                if (
+                    !result.data ||
+                    result.data.ok !== true
+                ) {
+
+                    throw new Error(
+                        "opt_in_failed"
+                    );
 
                 }
 

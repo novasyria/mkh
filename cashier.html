@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K Loyalty - الكاشير</title>
+    <title>NUQTH - الكاشير</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2 https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -25,8 +28,8 @@
         .logo { width: 65px; height: 65px; margin: 0 auto 18px; border-radius: 50%; background: #d4af37; color: #111; display: flex; justify-content: center; align-items: center; font-size: 26px; font-weight: bold; }
         h1 { color: #d4af37; margin-bottom: 10px; }
         .description { color: #aaa; font-size: 14px; margin-bottom: 22px; }
-        input[type="text"] { width: 100%; padding: 15px; background: #202020; color: white; border: 1px solid #333; border-radius: 12px; outline: none; font-size: 16px; margin-bottom: 14px; text-align: center; }
-        input[type="text"]:focus { border-color: #d4af37; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 15px; background: #202020; color: white; border: 1px solid #333; border-radius: 12px; outline: none; font-size: 16px; margin-bottom: 14px; text-align: center; }
+        input[type="text"]:focus, input[type="number"]:focus { border-color: #d4af37; }
         button { width: 100%; padding: 15px; background: #d4af37; color: #111; border: none; border-radius: 12px; font-size: 17px; font-weight: bold; cursor: pointer; margin-bottom: 12px; }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
         #reader { display: none; width: 100%; margin: 18px auto; border: 1px solid #333; border-radius: 16px; overflow: hidden; }
@@ -46,7 +49,7 @@
 <body>
 
     <main class="cashier-card">
-        <div class="logo">K</div>
+        <div class="logo">N</div>
         <h1>لوحة الكاشير</h1>
         <p class="description">امسح QR العميل للوصول إلى بطاقته.</p>
 
@@ -64,7 +67,7 @@
         <div class="divider">أو</div>
 
         <!-- إدخال يدوي -->
-        <input type="text" id="memberID" placeholder="أدخل رقم العضوية" autocomplete="off">
+        <input type="text" id="memberID" placeholder="أدخل رقم العضوية" autocomplete="off" maxlength="80">
         <button id="searchButton" type="button">البحث عن العميل</button>
 
         <!-- النتيجة -->
@@ -72,15 +75,70 @@
 
         <a id="cashierLogoutLink" class="back-link" href="index.html">تسجيل خروج</a>
     </main><script>
+        // ---- بوابة الدخول: لا تفتح الصفحة بدون تسجيل دخول من index.html ----
+        (function () {
+            var ok = false;
+            try {
+                var code = new URLSearchParams(location.search).get('project') || '';
+                var saved = localStorage.getItem('k_loyalty_saved_dest');
+                var access = localStorage.getItem('k_loyalty_access_code');
+                if (code && saved && access) {
+                    var u = new URL(saved, location.href);
+                    ok = /\/cashier\.html$/.test(u.pathname) && u.searchParams.get('project') === code;
+                }
+            } catch (e) { ok = false; }
+            if (!ok) {
+                location.replace('index.html');
+                throw new Error('unauthorized');
+            }
+        })();
+
         // =================================================
         // SUPABASE
         // =================================================
         const SUPABASE_URL = "https://ofylogxewabdiemaifep.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_UzOHSK-Jk_5KVVu0TEcFxQ_bOjlAgFQ";
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // رمز الكاشير السري (يُستخدم للتحقق منه في السيرفر مع كل طلب)
+        const ACCESS_CODE_KEY = "k_loyalty_access_code";
+        const accessCode = localStorage.getItem(ACCESS_CODE_KEY) || "";
+
+        function logoutAndRedirect() {
+            try {
+                localStorage.removeItem(ACCESS_CODE_KEY);
+                localStorage.removeItem("k_loyalty_saved_dest");
+            } catch (e) {}
+            window.location.replace("index.html");
+        }
+
         document.getElementById("cashierLogoutLink").addEventListener("click", function () {
             localStorage.removeItem("k_loyalty_saved_dest");
+            localStorage.removeItem(ACCESS_CODE_KEY);
         });
+
+        // لا نسمح بالعمل قبل التأكد من صلاحية الرمز على السيرفر
+        async function verifyCashierAccess() {
+            if (!accessCode || !currentProjectCode || !db) {
+                logoutAndRedirect();
+                return false;
+            }
+
+            try {
+                const { data, error } = await db.rpc("app_login", { p_code: accessCode });
+                if (error) throw error;
+                const auth = data || {};
+                if (auth.ok !== true || auth.role !== "cashier" || auth.store_code !== currentProjectCode) {
+                    logoutAndRedirect();
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                console.error("Access verification failed:", e);
+                logoutAndRedirect();
+                return false;
+            }
+        }
 
         // =================================================
         // العناصر
@@ -132,41 +190,23 @@
         const urlParams = new URLSearchParams(window.location.search);
         const currentProjectCode = urlParams.get('project');
 
-        // =================================================
-        // جلب إعدادات الولاء مباشرة وآنياً من Supabase
-        // =================================================
-        async function getSettingsAsync(storeCode) {
-            const targetCode = storeCode || currentProjectCode;
-            
-            if (targetCode) {
-                try {
-                    const { data, error } = await db.from("stores")
-                        .select("points_per_visit, reward_points, reward_name, visit_period_days, visit_target")
-                        .eq("store_code", targetCode)
-                        .maybeSingle();
-
-                    if (data) {
-                        return {
-                            pointsPerVisit: Number(data.points_per_visit) || 10,
-                            rewardPoints: Number(data.reward_points) || 100,
-                            rewardName: data.reward_name || "خصم 10%",
-                            periodDays: Number(data.visit_period_days) || 30,
-                            visitTarget: Number(data.visit_target) || 4
-                        };
-                    }
-                } catch (e) {
-                    console.error("خطأ في جلب بيانات السحابة:", e);
-                }
-            }
-
-            return { pointsPerVisit: 10, rewardPoints: 100, rewardName: "خصم 10%", periodDays: 30, visitTarget: 4 };
-        }
+        // إعدادات الولاء تأتي مع نتيجة البحث من السيرفر (لا قراءة مباشرة للجداول)
 
         // =================================================
         // رسالة خطأ
         // =================================================
+        // تعقيم النصوص قبل عرضها (يمنع حقن أكواد من اسم/هاتف العميل)
+        function esc(value) {
+            return String(value == null ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
         function showError(message) {
-            customerResult.innerHTML = '<div class="error">' + message + '</div>';
+            customerResult.innerHTML = '<div class="error">' + esc(message) + '</div>';
         }
 
         // =================================================
@@ -208,38 +248,70 @@
                 if (!qrData) {
                     showError("رمز QR غير صحيح.");
                     return;
-                }let query = db.from("customers").select("*").eq("member_id", qrData.memberID);
-
-                if (qrData.storeCode) {
-                    query = query.eq("store_code", qrData.storeCode);
                 }
 
-                const result = await query.maybeSingle();
-
-                if (result.error) {
-                    console.error(result.error);
-                    showError("حدث خطأ أثناء البحث: " + result.error.message);
+                // الكاشير يتعامل فقط مع عملاء مشروعه
+                if (currentProjectCode && qrData.storeCode && qrData.storeCode !== currentProjectCode) {
+                    showError("هذه البطاقة لا تتبع هذا المشروع.");
                     return;
                 }
 
-                if (!result.data) {
-                    showError("لم يتم العثور على العميل.");
+                const storeForRequest = qrData.storeCode || currentProjectCode;
+
+                if (!storeForRequest) {
+                    showError("تعذر تحديد المشروع.");
                     return;
                 }
 
-                await showCustomer(result.data);
+                // كل التحقق من الرمز والبيانات يتم داخل قاعدة البيانات
+                const lookup = await db.rpc("cashier_lookup", {
+                    p_code: accessCode,
+                    p_store_code: storeForRequest,
+                    p_member_id: qrData.memberID
+                });
+
+                if (lookup.error) {
+                    console.error(lookup.error);
+                    showError("حدث خطأ أثناء البحث. حاول مرة أخرى.");
+                    return;
+                }
+
+                const payload = lookup.data || {};
+
+                if (!payload.ok) {
+                    if (payload.error === "unauthorized") {
+                        logoutAndRedirect();
+                        return;
+                    }
+                    if (payload.error === "not_found") {
+                        showError("لم يتم العثور على العميل.");
+                        return;
+                    }
+                    showError("حدث خطأ أثناء البحث. حاول مرة أخرى.");
+                    return;
+                }
+
+                await showCustomer(payload.customer, payload.settings);
             } catch (error) {
                 console.error(error);
-                showError("حدث خطأ: " + error.message);
+                showError("حدث خطأ. حاول مرة أخرى.");
             }
         }
 
         // =================================================
         // عرض العميل
         // =================================================
-        async function showCustomer(customer) {
-            // جلب الإعدادات المحدثة تلقائياً للمشروع الخاص بهذا العميل من السحابة مباشرة
-            const settings = await getSettingsAsync(customer.store_code);
+        async function showCustomer(customer, settings) {
+            settings = settings || {};
+
+            // إعدادات السيرفر مع قيم افتراضية آمنة
+            settings = {
+                pointsPerVisit: Number(settings.pointsPerVisit) || 10,
+                rewardPoints: Number(settings.rewardPoints) || 100,
+                rewardName: settings.rewardName || "خصم 10%",
+                periodDays: Number(settings.periodDays) || 30,
+                visitTarget: Number(settings.visitTarget) || 4
+            };
             const visits = Number(customer.visits || 0);
             const points = Number(customer.points || 0);
             const periodVisits = Number(customer.period_visits || 0);
@@ -279,30 +351,32 @@
                 ? '<div class="reward">' +
                     '🎉 العميل يستحق مكافأة!' +
                     '<br><br>' +
-                    '<strong>' + settings.rewardName + '</strong>' +
+                    '<strong>' + esc(settings.rewardName) + '</strong>' +
                     '<button type="button" style="margin-top:12px;" id="useRewardButton">' +
                     'استخدام المكافأة' +
                     '</button>' +
                     '</div>'
                 : "";
 
-            const name = customer.name || "بدون اسم";
-            const phone = customer.phone || "غير مسجل";
-            const storeCode = customer.store_code || "-";
+            const name = esc(customer.name || "بدون اسم");
+            const phone = esc(customer.phone || "غير مسجل");
+            const storeCode = esc(customer.store_code || "-");
 
             customerResult.innerHTML =
                 '<div class="customer">' +
                 '<h2>بيانات العميل</h2>' +
                 '<div class="project">المشروع: ' + storeCode + '</div>' +
                 '<p><strong>الاسم:</strong> ' + name + '</p>' +
-                '<p><strong>رقم العضوية:</strong> ' + customer.member_id + '</p>' +
+                '<p><strong>رقم العضوية:</strong> ' + esc(customer.member_id) + '</p>' +
                 '<p><strong>الهاتف:</strong> ' + phone + '</p>' +
                 '<p><strong>إجمالي الزيارات:</strong> ' + visits + '</p>' +
                 '<p><strong>النقاط:</strong> ' + points + '</p>' +
                 progressHTML +
                 rewardHTML +
+                '<label for="pointsAwardInput" style="display:block;color:#ccc;margin:14px 0 6px;font-size:14px;">النقاط الممنوحة لهذه الزيارة</label>' +
+                '<input type="number" id="pointsAwardInput" min="1" max="100000" step="1" required value="' + settings.pointsPerVisit + '">' +
                 '<button type="button" style="margin-top:10px;" id="addVisitButton">' +
-                'تسجيل زيارة (+' + settings.pointsPerVisit + ' نقاط)' +
+                'تسجيل زيارة' +
                 '</button>' +
                 '</div>';
 
@@ -310,56 +384,51 @@
             // تسجيل زيارة
             // =========================================
             const addVisitButton = document.getElementById("addVisitButton");
+            const pointsAwardInput = document.getElementById("pointsAwardInput");
             addVisitButton.onclick = async function () {
+                const pointsToAward = Number(pointsAwardInput.value);
+                if (!pointsAwardInput.reportValidity() || !Number.isSafeInteger(pointsToAward) || pointsToAward < 1 || pointsToAward > 100000) {
+                    return;
+                }
+
                 this.disabled = true;
                 this.innerText = "جاري الحفظ...";
 
-                const newVisits = visits + 1;
-
-                // التحقق من انتهاء المدة
-                let nowStr = new Date().toISOString();
-                let newPeriodStart = customer.period_start || nowStr;
-                let newPeriodVisits = periodVisits;
-
-                if (!customer.period_start) {
-                    // أول زيارة - نبدأ الدورة
-                    newPeriodStart = nowStr;
-                    newPeriodVisits = 1;
-                } else {
-                    const start = new Date(customer.period_start);
-                    const now = new Date();
-                    const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-                    if (diffDays >= settings.periodDays) {
-                        // المدة انتهت - تصفير العداد ونبدأ من جديد
-                        newPeriodStart = nowStr;
-                        newPeriodVisits = 1;
-                    } else {
-                        newPeriodVisits = periodVisits + 1;
-                    }
-                }
-
-                const newPoints = points + settings.pointsPerVisit;
-
                 try {
-                    const result = await db
-                        .from("customers")
-                        .update({
-                            visits: newVisits,
-                            points: newPoints,
-                            period_start: newPeriodStart,
-                            period_visits: newPeriodVisits
-                        })
-                        .eq("id", customer.id)
-                        .select()
-                        .single();
+                    // الحساب والتحديث يتمّان داخل قاعدة البيانات (يمنع التلاعب والسباق)
+                    const result = await db.rpc("cashier_add_visit", {
+                        p_code: accessCode,
+                        p_store_code: customer.store_code || currentProjectCode,
+                        p_member_id: customer.member_id,
+                        p_points: pointsToAward
+                    });
 
                     if (result.error) throw result.error;
 
-                    await showCustomer(result.data);
+                    const payload = result.data || {};
+
+                    if (!payload.ok) {
+                        if (payload.error === "unauthorized") {
+                            logoutAndRedirect();
+                            return;
+                        }
+                        if (payload.error === "points_limit" || payload.error === "visits_limit") {
+                            showError("تعذر تحديث البيانات بسبب تجاوز الحد المسموح.");
+                            return;
+                        }
+                        if (payload.error === "not_found") {
+                            showError("لم يتم العثور على العميل.");
+                            return;
+                        }
+                        showError("تعذر تحديث البيانات. حاول مرة أخرى.");
+                        return;
+                    }
+
+                    await showCustomer(payload.customer, payload.settings);
                     customerResult.innerHTML += '<div class="success">تم تسجيل الزيارة بنجاح ✅</div>';
                 } catch (error) {
                     console.error(error);
-                    showError("تعذر تحديث البيانات: " + error.message);
+                    showError("تعذر تحديث البيانات. حاول مرة أخرى.");
                 }
             };// =========================================
             // استخدام المكافأة
@@ -369,25 +438,32 @@
                 useRewardButton.onclick = async function () {
                     this.disabled = true;
                     this.innerText = "جاري استخدام المكافأة...";
-                    const updates = {};
-                    if (hasPointsReward) {
-                        updates.points = Math.max(0, points - settings.rewardPoints);
-                    }
-                    if (hasVisitReward) {
-                        updates.period_visits = 0;
-                    }
 
                     try {
-                        const result = await db
-                            .from("customers")
-                            .update(updates)
-                            .eq("id", customer.id)
-                            .select()
-                            .single();
+                        const result = await db.rpc("cashier_redeem", {
+                            p_code: accessCode,
+                            p_store_code: customer.store_code || currentProjectCode,
+                            p_member_id: customer.member_id
+                        });
 
                         if (result.error) throw result.error;
 
-                        await showCustomer(result.data);
+                        const payload = result.data || {};
+
+                        if (!payload.ok) {
+                            if (payload.error === "unauthorized") {
+                                logoutAndRedirect();
+                                return;
+                            }
+                            if (payload.error === "no_reward") {
+                                showError("لا توجد مكافأة مستحقة حالياً.");
+                                return;
+                            }
+                            showError("تعذر استخدام المكافأة.");
+                            return;
+                        }
+
+                        await showCustomer(payload.customer, payload.settings);
                         customerResult.innerHTML += '<div class="success">تم استخدام المكافأة بنجاح ✅</div>';
                     } catch (error) {
                         console.error(error);
@@ -616,5 +692,8 @@
             qrImage.value = "";
             scanImageFile(file);
         };
+
+        // التحقق من رمز الكاشير على السيرفر قبل بدء العمل
+        verifyCashierAccess();
     </script>
 </body></html>
