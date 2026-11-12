@@ -7,7 +7,7 @@
     <title>NUQTH - لوحة إدارة المشروع</title>
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="no-referrer">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
                                                
     <style>
@@ -32,6 +32,15 @@
         .marketing-subscribers, .settings { text-align: right; background: #1b1b1b; border: 1px solid #333; border-radius: 18px; padding: 20px; margin-bottom: 25px; }
         .marketing-subscribers { border-color: #28a745; }
         .marketing-subscribers h2 { color: #28a745; text-align: center; margin-bottom: 15px; font-size: 18px; }
+
+        .customers-box { text-align: right; background: #1b1b1b; border: 1px solid #333; border-radius: 18px; padding: 20px; margin-bottom: 25px; }
+        .customers-box h2 { color: #d4af37; text-align: center; margin-bottom: 12px; font-size: 18px; }
+        .customer-search { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #333; border-radius: 10px; background: #101010; color: #fff; font-size: 14px; outline: none; }
+        .customer-search:focus { border-color: #d4af37; }
+        .customers-container { max-height: 300px; }
+        .btn-points { background: #d4af37; color: #111; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; margin-left: 4px; }
+        .btn-delete { background: #a33; color: #fff; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        .net-status { background: #4a3b00; border: 1px solid #d4af37; color: #ffd76a; border-radius: 10px; padding: 10px; font-size: 12px; margin-bottom: 10px; text-align: center; }
         
         .table-container { max-height: 220px; overflow-y: auto; border: 1px solid #333; border-radius: 10px; }
         table { width: 100%; border-collapse: collapse; text-align: right; font-size: 13px; }
@@ -76,6 +85,37 @@
             <div class="stat"><strong id="customersCount">0</strong><span>العملاء</span></div>
             <div class="stat"><strong id="visitsCount">0</strong><span>الزيارات</span></div>
             <div class="stat" style="border-color: #28a745;"><strong id="offersCount" style="color: #28a745;">0</strong><span>العروض</span></div>
+        </section>
+
+        <section class="customers-box">
+            <h2>العملاء 👥</h2>
+
+            <div id="netStatus" class="net-status" style="display:none;"></div>
+
+            <input
+                type="text"
+                id="customerSearch"
+                class="customer-search"
+                placeholder="بحث بالاسم أو رقم العضوية"
+                autocomplete="off"
+            >
+
+            <div class="table-container customers-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>العضوية</th>
+                            <th>النقاط</th>
+                            <th>الزيارات</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTable">
+                        <tr><td colspan="5" style="text-align: center; color: #888;">جاري التحميل...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section class="marketing-subscribers">
@@ -171,16 +211,124 @@
         }
 
         async function verifyOwner() {
-            if (!currentProjectCode || !db || !accessCode) return false;
+            if (!currentProjectCode || !db || !accessCode) return "unauthorized";
             try {
                 const { data, error } = await db.rpc("app_login", { p_code: accessCode });
                 if (error) throw error;
                 const auth = data || {};
-                return auth.ok === true && auth.role === "admin" && auth.store_code === currentProjectCode;
+                if (auth.ok === true && auth.role === "admin" && auth.store_code === currentProjectCode) {
+                    return "ok";
+                }
+                return "unauthorized";
             } catch (e) {
                 console.error("Owner verification failed:", e);
-                return false;
+                return "offline";
             }
+        }
+
+        // ---- تخزين محلي: يسمح بفتح الصفحة والتعديل بدون إنترنت ----
+        const CACHE_KEY = "k_owner_cache_" + currentProjectCode;
+        const QUEUE_KEY = "k_owner_queue_" + currentProjectCode;
+        let offlineMode = false;
+        let currentPayload = null;
+
+        function readQueue() {
+            try {
+                var q = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+                return Array.isArray(q) ? q : [];
+            } catch (e) { return []; }
+        }
+
+        function writeQueue(q) {
+            try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch (e) {}
+        }
+
+        function readCache() {
+            try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch (e) { return null; }
+        }
+
+        function writeCache(payload) {
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(payload)); } catch (e) {}
+        }
+
+        function mutateCache(mutator) {
+            var cached = readCache();
+            if (!cached) return;
+            cached.customers = cached.customers || [];
+            mutator(cached);
+            writeCache(cached);
+            currentPayload = applyQueue(cached, readQueue());
+            renderOwner(currentPayload);
+        }
+
+        function enqueue(op) {
+            var q = readQueue();
+
+            if (op.type === "delete_customer") {
+                q = q.filter(function (x) {
+                    return !(x.member_id === op.member_id && (x.type === "set_points" || x.type === "mark_added" || x.type === "delete_customer"));
+                });
+            }
+
+            if (op.type === "set_points") {
+                q = q.filter(function (x) {
+                    return !(x.type === "set_points" && x.member_id === op.member_id);
+                });
+            }
+
+            if (op.type === "settings") {
+                q = q.filter(function (x) { return x.type !== "settings"; });
+            }
+
+            q.push(op);
+            writeQueue(q);
+        }
+
+        function applyQueue(payload, queue) {
+            if (!payload) return payload;
+
+            var copy = JSON.parse(JSON.stringify(payload));
+            copy.customers = copy.customers || [];
+
+            queue.forEach(function (op) {
+                if (op.type === "set_points") {
+                    copy.customers.forEach(function (c) {
+                        if (c.member_id === op.member_id) c.points = op.points;
+                    });
+                } else if (op.type === "delete_customer") {
+                    copy.customers = copy.customers.filter(function (c) {
+                        return c.member_id !== op.member_id;
+                    });
+                } else if (op.type === "mark_added") {
+                    copy.customers.forEach(function (c) {
+                        if (c.member_id === op.member_id) c.added_to_group = true;
+                    });
+                } else if (op.type === "settings" && copy.store) {
+                    copy.store.points_per_visit = op.points_per_visit;
+                    copy.store.reward_points = op.reward_points;
+                    copy.store.reward_name = op.reward_name;
+                    copy.store.visit_period_days = op.visit_period_days;
+                    copy.store.visit_target = op.visit_target;
+                }
+            });
+
+            return copy;
+        }
+
+        function setNetStatus(online) {
+            var el = document.getElementById("netStatus");
+            if (!el) return;
+
+            if (online) {
+                el.style.display = "none";
+                el.textContent = "";
+                return;
+            }
+
+            el.style.display = "block";
+            el.textContent = navigator.onLine === false
+                ? "⚠️ لا يوجد اتصال بالإنترنت — تعرض بيانات محفوظة، والتعديلات ستُرسل تلقائياً عند عودة الاتصال."
+                : "⚠️ تعذر الاتصال بالخادم — التعديلات محفوظة محلياً وستُرسل تلقائياً.";
         }
 
         function applyStoreInfo(data) {
@@ -204,6 +352,318 @@
                 : date.toLocaleDateString("ar", { calendar: "gregory" });
         }
 
+        function renderOwner(payload) {
+            currentPayload = payload;
+
+            var store = payload.store || {};
+            applyStoreInfo(store);
+
+            var customers = payload.customers || [];
+            var totalVisits = 0;
+            var offersSubscribers = [];
+
+            customers.forEach(function (user) {
+                totalVisits += Number(user.visits || 0);
+                if (user.marketing_opt_in) offersSubscribers.push(user);
+            });
+
+            document.getElementById("customersCount").textContent = customers.length;
+            document.getElementById("visitsCount").textContent = totalVisits;
+            document.getElementById("offersCount").textContent = offersSubscribers.length;
+
+            renderCustomersTable(customers);
+            renderOffersTable(offersSubscribers);
+        }
+
+        function renderCustomersTable(customers) {
+            var tbody = document.getElementById("customersTable");
+            if (!tbody) return;
+
+            var searchEl = document.getElementById("customerSearch");
+            var query = searchEl ? searchEl.value.trim().toLowerCase() : "";
+
+            var list = customers.filter(function (c) {
+                if (!query) return true;
+                return String(c.name || "").toLowerCase().indexOf(query) !== -1
+                    || String(c.member_id || "").toLowerCase().indexOf(query) !== -1;
+            });
+
+            if (list.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='5' style='text-align: center; color: #888;'>لا يوجد عملاء</td></tr>";
+                return;
+            }
+
+            tbody.innerHTML = "";
+
+            list.forEach(function (user) {
+                var tr = document.createElement("tr");
+
+                var tdName = document.createElement("td");
+                tdName.textContent = user.name || "بدون اسم";
+
+                var tdMember = document.createElement("td");
+                tdMember.textContent = user.member_id || "-";
+                tdMember.dir = "ltr";
+
+                var tdPoints = document.createElement("td");
+                tdPoints.textContent = String(Number(user.points || 0));
+
+                var tdVisits = document.createElement("td");
+                tdVisits.textContent = String(Number(user.visits || 0));
+
+                var tdActions = document.createElement("td");
+
+                var pointsBtn = document.createElement("button");
+                pointsBtn.type = "button";
+                pointsBtn.className = "btn-points";
+                pointsBtn.textContent = "تعديل النقاط";
+                pointsBtn.onclick = function () { changePoints(user.member_id, user.points); };
+
+                var deleteBtn = document.createElement("button");
+                deleteBtn.type = "button";
+                deleteBtn.className = "btn-delete";
+                deleteBtn.textContent = "حذف";
+                deleteBtn.onclick = function () { deleteCustomer(user.member_id, user.name); };
+
+                tdActions.appendChild(pointsBtn);
+                tdActions.appendChild(deleteBtn);
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdMember);
+                tr.appendChild(tdPoints);
+                tr.appendChild(tdVisits);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderOffersTable(offersSubscribers) {
+            var tbody = document.getElementById("subscribersTable");
+
+            if (offersSubscribers.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #888;'>لا يوجد مشتركين بالعروض</td></tr>";
+                return;
+            }
+
+            tbody.innerHTML = "";
+
+            offersSubscribers.forEach(function (user) {
+                var tr = document.createElement("tr");
+
+                var tdName = document.createElement("td");
+                tdName.textContent = user.name || "بدون اسم";
+
+                var tdPhone = document.createElement("td");
+                tdPhone.textContent = user.phone || "-";
+                if (user.phone) {
+                    var copyBtn = document.createElement("button");
+                    copyBtn.className = "btn-copy-phone";
+                    copyBtn.textContent = "نسخ";
+                    copyBtn.onclick = function () {
+                        navigator.clipboard.writeText(user.phone).then(function () {
+                            copyBtn.textContent = "تم ✓";
+                            setTimeout(function () { copyBtn.textContent = "نسخ"; }, 1500);
+                        });
+                    };
+                    tdPhone.appendChild(copyBtn);
+                }
+
+                var tdStatus = document.createElement("td");
+                tdStatus.innerHTML = user.added_to_group
+                    ? "<span class='badge-done'>تمت الإضافة ✅</span>"
+                    : "<span class='badge-new'>جديد 🆕</span>";
+
+                var tdAction = document.createElement("td");
+                if (user.added_to_group) {
+                    tdAction.textContent = "-";
+                } else {
+                    var btn = document.createElement("button");
+                    btn.className = "btn-add";
+                    btn.textContent = "تمت الإضافة";
+                    btn.onclick = async function () {
+                        btn.disabled = true;
+                        await markAsAdded(user.member_id);
+                    };
+                    tdAction.appendChild(btn);
+                }
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdPhone);
+                tr.appendChild(tdStatus);
+                tr.appendChild(tdAction);
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ---- إرسال العمليات المحفوظة محلياً ----
+        async function sendOp(op) {
+            if (op.type === "set_points") {
+                return db.rpc("owner_set_points", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_member_id: op.member_id,
+                    p_points: op.points
+                });
+            }
+            if (op.type === "delete_customer") {
+                return db.rpc("owner_delete_customer", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_member_id: op.member_id
+                });
+            }
+            if (op.type === "mark_added") {
+                return db.rpc("owner_mark_added", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_member_id: op.member_id
+                });
+            }
+            if (op.type === "settings") {
+                return db.rpc("owner_update_settings", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_points_per_visit: op.points_per_visit,
+                    p_reward_points: op.reward_points,
+                    p_reward_name: op.reward_name,
+                    p_visit_period_days: op.visit_period_days,
+                    p_visit_target: op.visit_target
+                });
+            }
+            return null;
+        }
+
+        async function flushQueue() {
+            if (!db) return false;
+
+            var queue = readQueue();
+
+            while (queue.length > 0) {
+                var op = queue[0];
+                var res;
+
+                try {
+                    res = await sendOp(op);
+                } catch (e) {
+                    return false;
+                }
+
+                if (!res) {
+                    queue.shift();
+                    writeQueue(queue);
+                    continue;
+                }
+
+                if (res.error) {
+                    return false;
+                }
+
+                var payload = res.data || {};
+
+                if (payload.ok === false && payload.error === "unauthorized") {
+                    logoutOwner();
+                    return false;
+                }
+
+                // العمليات المرفوضة منطقياً (مثل عميل محذوف مسبقاً) تُسقط حتى لا تعلق
+                queue.shift();
+                writeQueue(queue);
+            }
+
+            return true;
+        }
+
+        async function changePoints(memberID, currentPoints) {
+            var input = prompt("أدخل عدد النقاط الجديد:", String(currentPoints || 0));
+            if (input === null) return;
+
+            var points = Math.floor(Number(input));
+
+            if (!Number.isFinite(points) || points < 0 || points > 100000000) {
+                alert("أدخل رقماً صحيحاً بين 0 و 100,000,000");
+                return;
+            }
+
+            try {
+                if (!db) throw new Error("no_db");
+
+                var res = await db.rpc("owner_set_points", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_member_id: memberID,
+                    p_points: points
+                });
+
+                if (res.error) throw res.error;
+
+                var payload = res.data || {};
+
+                if (!payload.ok) {
+                    if (payload.error === "unauthorized") { logoutOwner(); return; }
+                    throw new Error(payload.error || "failed");
+                }
+
+                mutateCache(function (cached) {
+                    cached.customers.forEach(function (c) {
+                        if (c.member_id === memberID) c.points = points;
+                    });
+                });
+                setNetStatus(true);
+                await loadData();
+
+            } catch (e) {
+                enqueue({ type: "set_points", member_id: memberID, points: points });
+                mutateCache(function (cached) {
+                    cached.customers.forEach(function (c) {
+                        if (c.member_id === memberID) c.points = points;
+                    });
+                });
+                setNetStatus(false);
+                alert("لا يوجد اتصال — حُفظ التعديل محلياً وسيُرسل تلقائياً عند عودة الاتصال.");
+            }
+        }
+
+        async function deleteCustomer(memberID, name) {
+            if (!confirm("حذف العميل \"" + (name || "") + "\" نهائياً؟ لا يمكن التراجع.")) return;
+
+            try {
+                if (!db) throw new Error("no_db");
+
+                var res = await db.rpc("owner_delete_customer", {
+                    p_code: accessCode,
+                    p_store_code: currentProjectCode,
+                    p_member_id: memberID
+                });
+
+                if (res.error) throw res.error;
+
+                var payload = res.data || {};
+
+                if (!payload.ok) {
+                    if (payload.error === "unauthorized") { logoutOwner(); return; }
+                    throw new Error(payload.error || "failed");
+                }
+
+                mutateCache(function (cached) {
+                    cached.customers = cached.customers.filter(function (c) {
+                        return c.member_id !== memberID;
+                    });
+                });
+                setNetStatus(true);
+                await loadData();
+
+            } catch (e) {
+                enqueue({ type: "delete_customer", member_id: memberID });
+                mutateCache(function (cached) {
+                    cached.customers = cached.customers.filter(function (c) {
+                        return c.member_id !== memberID;
+                    });
+                });
+                setNetStatus(false);
+                alert("لا يوجد اتصال — حُفظ الحذف محلياً وسيُنفذ تلقائياً عند عودة الاتصال.");
+            }
+        }
+
         document.getElementById("saveSettingsBtn").onclick = async function () {
             if (!currentProjectCode) return alert("كود المشروع مفقود!");
 
@@ -219,11 +679,22 @@
             const periodDays = clampInt("visitPeriodDays", 30, 3650);
             const target = clampInt("visitTarget", 4, 1000);
 
+            const op = {
+                type: "settings",
+                points_per_visit: pVisit,
+                reward_points: rPoints,
+                reward_name: rName,
+                visit_period_days: periodDays,
+                visit_target: target
+            };
+
             saveBtn.disabled = true;
             msg.style.color = "#d4af37";
             msg.textContent = "جاري الحفظ بالسحابة...";
 
             try {
+                if (!db) throw new Error("no_db");
+
                 const { data, error } = await db.rpc("owner_update_settings", {
                     p_code: accessCode,
                     p_store_code: currentProjectCode,
@@ -235,7 +706,9 @@
                 });
 
                 if (error) throw error;
+
                 const payload = data || {};
+
                 if (!payload.ok) {
                     if (payload.error === "unauthorized") {
                         logoutOwner();
@@ -244,46 +717,85 @@
                     throw new Error(payload.error || "save_failed");
                 }
 
+                mutateCache(function (cached) {
+                    cached.store = Object.assign({}, cached.store, op);
+                });
+
+                offlineMode = false;
+                setNetStatus(true);
                 msg.style.color = "#76e39b";
                 msg.textContent = "تم حفظ الإعدادات بنجاح وتحديث الكاشير ✅";
+
             } catch (err) {
-                console.error("Save Error:", err);
-                msg.style.color = "#ff7777";
-                msg.textContent = "خطأ بالحفظ! تحقق من الاتصال بالحساب.";
+                enqueue(op);
+                mutateCache(function (cached) {
+                    cached.store = Object.assign({}, cached.store, op);
+                });
+                setNetStatus(false);
+                msg.style.color = "#d4af37";
+                msg.textContent = "لا يوجد اتصال — حُفظت الإعدادات محلياً وستُرسل تلقائياً.";
+
             } finally {
                 saveBtn.disabled = false;
-                setTimeout(() => { msg.textContent = ""; }, 3000);
+                setTimeout(function () { msg.textContent = ""; }, 3500);
             }
         };
 
         async function markAsAdded(memberID) {
-            if (!db) return;
+            var op = { type: "mark_added", member_id: memberID };
+
             try {
-                const { data, error } = await db.rpc("owner_mark_added", {
+                if (!db) throw new Error("no_db");
+
+                var res = await db.rpc("owner_mark_added", {
                     p_code: accessCode,
                     p_store_code: currentProjectCode,
                     p_member_id: memberID
                 });
-                if (error) throw error;
-                if (!data || !data.ok) throw new Error("failed");
+
+                if (res.error) throw res.error;
+
+                var payload = res.data || {};
+
+                if (!payload.ok) {
+                    if (payload.error === "unauthorized") { logoutOwner(); return; }
+                    throw new Error(payload.error || "failed");
+                }
+
+                mutateCache(function (cached) {
+                    cached.customers.forEach(function (c) {
+                        if (c.member_id === memberID) c.added_to_group = true;
+                    });
+                });
+                setNetStatus(true);
                 await loadData();
-            } catch (err) {
-                console.error("خطأ التحديث:", err);
+
+            } catch (e) {
+                enqueue(op);
+                mutateCache(function (cached) {
+                    cached.customers.forEach(function (c) {
+                        if (c.member_id === memberID) c.added_to_group = true;
+                    });
+                });
+                setNetStatus(false);
             }
         }
 
         async function loadData() {
-            if (!currentProjectCode || !db) return;
-            const tbody = document.getElementById("subscribersTable");
+            if (!currentProjectCode) return;
 
             try {
+                if (!db) throw new Error("no_db");
+
                 const { data, error } = await db.rpc("owner_get", {
                     p_code: accessCode,
                     p_store_code: currentProjectCode
                 });
+
                 if (error) throw error;
 
                 const payload = data || {};
+
                 if (!payload.ok) {
                     if (payload.error === "unauthorized") {
                         logoutOwner();
@@ -292,91 +804,81 @@
                     throw new Error(payload.error || "failed");
                 }
 
-                applyStoreInfo(payload.store || {});
-                const customers = payload.customers || [];
+                offlineMode = false;
+                currentPayload = payload;
+                writeCache(payload);
+                renderOwner(applyQueue(payload, readQueue()));
+                setNetStatus(true);
 
-                if (!customers || customers.length === 0) {
-                    tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #888;'>لا يوجد عملاء حتى الآن</td></tr>";
-                    return;
-                }
-
-                let totalVisits = 0, offersSubscribers = [];
-
-                customers.forEach(user => {
-                    totalVisits += Number(user.visits || 0);
-                    if (user.marketing_opt_in) offersSubscribers.push(user);
-                });
-
-                document.getElementById("customersCount").textContent = customers.length;
-                document.getElementById("visitsCount").textContent = totalVisits;
-                document.getElementById("offersCount").textContent = offersSubscribers.length;
-
-                tbody.innerHTML = "";
-
-                if (offersSubscribers.length === 0) {
-                    tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #888;'>لا يوجد مشتركين بالعروض</td></tr>";
-                    return;
-                }
-
-                offersSubscribers.forEach(user => {
-                    let tr = document.createElement("tr");
-
-                    let tdName = document.createElement("td");
-                    tdName.textContent = user.name || "بدون اسم";
-
-                    let tdPhone = document.createElement("td");
-                    let phoneText = user.phone || "-";
-                    tdPhone.textContent = phoneText;
-                    if (user.phone) {
-                        let copyBtn = document.createElement("button");
-                        copyBtn.className = "btn-copy-phone";
-                        copyBtn.textContent = "نسخ";
-                        copyBtn.onclick = function() {
-                            navigator.clipboard.writeText(user.phone).then(function() {
-                                copyBtn.textContent = "تم ✓";
-                                setTimeout(function() { copyBtn.textContent = "نسخ"; }, 1500);
-                            });
-                        };
-                        tdPhone.appendChild(copyBtn);
-                    }
-
-                    let tdStatus = document.createElement("td");
-                    tdStatus.innerHTML = user.added_to_group 
-                        ? "<span class='badge-done'>تمت الإضافة ✅</span>" 
-                        : "<span class='badge-new'>جديد 🆕</span>";let tdAction = document.createElement("td");
-                    if (user.added_to_group) {
-                        tdAction.textContent = "-";
-                    } else {
-                        let btn = document.createElement("button");
-                        btn.className = "btn-add";
-                        btn.textContent = "تمت الإضافة";
-                        btn.onclick = async function() {
-                            btn.disabled = true;
-                            await markAsAdded(user.member_id);
-                        };
-                        tdAction.appendChild(btn);
-                    }
-
-                    tr.appendChild(tdName);
-                    tr.appendChild(tdPhone);
-                    tr.appendChild(tdStatus);
-                    tr.appendChild(tdAction);
-                    tbody.appendChild(tr);
-                });
             } catch (err) {
                 console.error(err);
-                tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; color: #ff7777;'>خطأ في تحميل البيانات</td></tr>";
+                offlineMode = true;
+                var cached = readCache();
+
+                if (cached) {
+                    renderOwner(applyQueue(cached, readQueue()));
+                } else {
+                    document.getElementById("customersTable").innerHTML =
+                        "<tr><td colspan='5' style='text-align: center; color: #ff7777;'>تعذر تحميل البيانات، ولا توجد نسخة محفوظة بعد.</td></tr>";
+                    document.getElementById("subscribersTable").innerHTML =
+                        "<tr><td colspan='4' style='text-align: center; color: #ff7777;'>تعذر تحميل البيانات</td></tr>";
+                }
+
+                setNetStatus(false);
             }
+        }
+
+        document.getElementById("customerSearch").addEventListener("input", function () {
+            if (currentPayload) renderCustomersTable(currentPayload.customers || []);
+        });
+
+        window.addEventListener("online", async function () {
+            var ok = await flushQueue();
+            if (ok) await loadData();
+        });
+
+        // محاولة إرسال دورية للتعديلات المحفوظة محلياً
+        setInterval(async function () {
+            if (!navigator.onLine) return;
+            if (readQueue().length === 0) return;
+            var ok = await flushQueue();
+            if (ok) await loadData();
+        }, 30000);
+
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("sw.js").catch(function () {});
         }
 
         (async function initOwner() {
             if (!currentProjectCode) return;
-            if (!(await verifyOwner())) {
+
+            var verdict = await verifyOwner();
+
+            if (verdict === "unauthorized") {
                 logoutOwner();
                 return;
             }
+
+            if (verdict === "offline") {
+                offlineMode = true;
+                var cached = readCache();
+                if (cached) {
+                    renderOwner(applyQueue(cached, readQueue()));
+                } else {
+                    document.getElementById("customersTable").innerHTML =
+                        "<tr><td colspan='5' style='text-align: center; color: #ff7777;'>لا يوجد اتصال، ولم تُحفظ نسخة من البيانات بعد. افتح الصفحة مرة واحدة مع الإنترنت.</td></tr>";
+                    document.getElementById("subscribersTable").innerHTML =
+                        "<tr><td colspan='4' style='text-align: center; color: #ff7777;'>لا يوجد اتصال</td></tr>";
+                }
+                setNetStatus(false);
+                return;
+            }
+
+            offlineMode = false;
+            await flushQueue();
             await loadData();
         })();
+
     </script>
 </body>
 </html>
