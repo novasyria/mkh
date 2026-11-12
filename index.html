@@ -13,7 +13,14 @@
     <title>NUQTH - الدخول</title>
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="no-referrer">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <meta name="theme-color" content="#d4af37">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src https://ofylogxewabdiemaifep.supabase.co wss://ofylogxewabdiemaifep.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -225,6 +232,28 @@
 
         }
 
+        .admin-link {
+
+            display: block;
+
+            margin-top: 18px;
+
+            color: #8a8a8a;
+
+            font-size: 12px;
+
+            text-decoration: none;
+
+            text-align: center;
+
+        }
+
+        .admin-link:hover {
+
+            color: #d4af37;
+
+        }
+
         .hidden {
 
             display: none !important;
@@ -319,6 +348,14 @@
     ></div>
 
 
+    <a
+        class="admin-link"
+        href="admin.html"
+    >
+        الإدارة العامة
+    </a>
+
+
 </div>
 
 
@@ -340,28 +377,10 @@ const db =
 
 
 // =====================================
-// رموز الإدارة العامة
+// حد محاولات الدخول الخاطئة
 // =====================================
 
-const GENERAL_CODE_HASHES = [
-    "fe2592b42a727e977f055947385b709cc82b16b9a87f88c6abf3900d65d0cdc3"
-];
-
-
-async function isGeneralCode(code) {
-    if (!window.crypto || !window.crypto.subtle) {
-        return false;
-    }
-    const data = new TextEncoder().encode(code);
-    const buf = await window.crypto.subtle.digest("SHA-256", data);
-    const hex = Array.from(new Uint8Array(buf))
-        .map(function (b) { return b.toString(16).padStart(2, "0"); })
-        .join("");
-    return GENERAL_CODE_HASHES.includes(hex);
-}
-
-
-// تحديد محاولات الدخول الخاطئة: 5 محاولات خلال 10 دقائق ثم انتظار دقيقة
+// 5 محاولات خلال 10 دقائق ثم انتظار دقيقة
 const FAIL_KEY = "k_login_fails";
 
 function readFails() {
@@ -710,7 +729,7 @@ async function login() {
 
 
     // =================================
-    // الإدارة العامة
+    // حد محاولات الدخول الخاطئة
     // =================================
 
     const waitSec = lockSecondsLeft();
@@ -725,25 +744,9 @@ async function login() {
     }
 
 
-    if (await isGeneralCode(code)) {
-
-        sessionStorage.setItem(
-            "k_general_login",
-            "true"
-        );
-
-        localStorage.setItem(
-            SAVED_DEST_KEY,
-            "admin.html"
-        );
-
-        window.location.href =
-            "admin.html";
-
-
-        return;
-
-    }loginButton.disabled =
+    // ملاحظة: رمز الإدارة العامة لم يعد يُتحقق منه هنا.
+    // الإدارة العامة تُفتح مباشرة من admin.html ويُطلب الرمز هناك.
+    loginButton.disabled =
         true;
 
 
@@ -1129,6 +1132,22 @@ accessCode.addEventListener(
 
 loadSavedProject();
 
+
+// =====================================
+// Service Worker (PWA + أوفلاين)
+// =====================================
+
+if ("serviceWorker" in navigator) {
+
+    window.addEventListener("load", function() {
+
+        navigator.serviceWorker
+            .register("sw.js")
+            .catch(function() {});
+
+    });
+
+}
 
 </script>
 
