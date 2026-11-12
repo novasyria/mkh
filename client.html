@@ -336,11 +336,11 @@
 
 
         <input
-            type="tel"
-            id="phone"
-            placeholder="رقم الهاتف"
-            maxlength="20"
-            autocomplete="off"
+            type="password"
+            id="password"
+            placeholder="كلمة السر (4 أحرف على الأقل)"
+            maxlength="64"
+            autocomplete="new-password"
         >
 
 
@@ -509,11 +509,32 @@
                 style="
                 font-size:14px;
                 color:#ddd;
-                margin-bottom:15px;
+                margin-bottom:10px;
                 "
             >
                 هل ترغب بالانضمام لمجموعة العروض؟
             </p>
+
+
+            <p
+                style="
+                font-size:13px;
+                color:#aaa;
+                margin-bottom:10px;
+                "
+            >
+                للانضمام لمجموعة العروض أدخل رقم هاتفك.
+            </p>
+
+
+            <input
+                type="tel"
+                id="offerPhone"
+                placeholder="رقم الهاتف"
+                maxlength="20"
+                autocomplete="off"
+                style="margin-bottom:15px;"
+            >
 
 
             <div class="btns-row">
@@ -1213,7 +1234,7 @@ async function loadPeriodCounter(customer) {
 // البحث عن العميل
 // =====================================
 
-async function findOrCreateCustomer(name, phone) {
+async function findOrCreateCustomer(name, password) {
 
     const rpcResult =
         await db.rpc(
@@ -1221,7 +1242,7 @@ async function findOrCreateCustomer(name, phone) {
             {
                 p_store_code: currentStore.store_code,
                 p_name: name,
-                p_phone: phone
+                p_password: password
             }
         );
 
@@ -1275,10 +1296,10 @@ createButton.addEventListener(
                 .trim();
 
 
-        const phone =
+        const password =
             document
                 .getElementById(
-                    "phone"
+                    "password"
                 )
                 .value
                 .trim();
@@ -1287,10 +1308,10 @@ createButton.addEventListener(
         showError("");
 
 
-        if (!name || !phone) {
+        if (!name || !password) {
 
             showError(
-                "الرجاء إدخال الاسم ورقم الهاتف."
+                "الرجاء إدخال الاسم وكلمة السر."
             );
 
             return;
@@ -1299,10 +1320,11 @@ createButton.addEventListener(
 
         if (
             name.length > 60 ||
-            !/^[0-9\u0660-\u0669\u06F0-\u06F9+\-\s()]{6,20}$/.test(phone)
+            password.length < 4 ||
+            password.length > 64
         ) {
             showError(
-                "الرجاء التأكد من الاسم ورقم الهاتف."
+                "كلمة السر يجب أن تكون من 4 إلى 64 حرفاً."
             );
             return;
         }
@@ -1331,7 +1353,7 @@ createButton.addEventListener(
             const customer =
                 await findOrCreateCustomer(
                     name,
-                    phone
+                    password
                 );
 
 
@@ -1366,6 +1388,12 @@ createButton.addEventListener(
 
                 showError(
                     "الرجاء إدخال اسم صحيح."
+                );
+
+            } else if (code === "invalid_password") {
+
+                showError(
+                    "كلمة السر يجب أن تكون من 4 إلى 64 حرفاً."
                 );
 
             } else if (code === "invalid_phone") {
@@ -1423,6 +1451,31 @@ document
                     .textContent;
 
 
+            const offerPhone =
+                document.getElementById(
+                    "offerPhone"
+                );
+
+            const phone =
+                offerPhone
+                    ? offerPhone.value.trim()
+                    : "";
+
+
+            if (
+                !phone ||
+                !/^[0-9\u0660-\u0669\u06F0-\u06F9+\-\s()]{6,20}$/.test(phone)
+            ) {
+
+                alert(
+                    "الرجاء إدخال رقم هاتف صحيح للانضمام لمجموعة العروض."
+                );
+
+                return;
+
+            }
+
+
             const button =
                 document.getElementById(
                     "btnYes"
@@ -1445,7 +1498,9 @@ document
                             p_store_code:
                                 currentStore.store_code,
                             p_member_id:
-                                memberID
+                                memberID,
+                            p_phone:
+                                phone
                         }
                     );
 
