@@ -1,4 +1,5 @@
 {
+    "id": "./",
     "name": "NUQTH - نظام الولاء والعروض",
     "short_name": "NUQTH",
     "description": "نظام نقاط الولاء والعروض للمتاجر: بطاقة العميل، الكاشير، ولوحة صاحب المشروع.",
@@ -7,9 +8,12 @@
     "start_url": "./index.html",
     "scope": "./",
     "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
     "orientation": "portrait",
     "background_color": "#0b0b0b",
     "theme_color": "#d4af37",
+    "categories": ["business", "productivity"],
+    "prefer_related_applications": false,
     "icons": [
         {
             "src": "icons/icon-192.png",
@@ -28,6 +32,12 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        },
+        {
+            "src": "icons/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
         }
     ]
 }
