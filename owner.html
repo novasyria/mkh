@@ -12,8 +12,8 @@
                                                
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        body { min-height: 100vh; background: #0b0b0b; color: white; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .owner-card { position: relative; width: 100%; max-width: 500px; background: #151515; border: 1px solid #d4af37; border-radius: 24px; padding: 30px 22px; text-align: center; box-shadow: 0 10px 40px rgba(212, 175, 55, 0.15); }
+        body { min-height: 100vh; background: #0b0b0b; color: white; display: flex; justify-content: center; align-items: flex-start; padding: 20px; }
+        .owner-card { position: relative; width: 100%; max-width: 1100px; background: #151515; border: 1px solid #d4af37; border-radius: 24px; padding: 30px 22px; text-align: center; box-shadow: 0 10px 40px rgba(212, 175, 55, 0.15); }
         .logo { width: 65px; height: 65px; margin: 0 auto 18px; border-radius: 50%; background: #d4af37; color: #111; display: flex; justify-content: center; align-items: center; font-size: 26px; font-weight: bold; }
         h1 { color: #d4af37; margin-bottom: 4px; }
         .owner-logout { position: absolute; top: 16px; left: 16px; background: #333; color: white; border: 1px solid #444; border-radius: 8px; padding: 7px 11px; font-size: 12px; cursor: pointer; }
@@ -37,12 +37,13 @@
         .customers-box h2 { color: #d4af37; text-align: center; margin-bottom: 12px; font-size: 18px; }
         .customer-search { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #333; border-radius: 10px; background: #101010; color: #fff; font-size: 14px; outline: none; }
         .customer-search:focus { border-color: #d4af37; }
-        .customers-container { max-height: 300px; }
+        .customers-container { max-height: 60vh; min-height: 180px; }
         .btn-points { background: #d4af37; color: #111; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: bold; margin-left: 4px; }
         .btn-delete { background: #a33; color: #fff; border: none; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; }
         .net-status { background: #4a3b00; border: 1px solid #d4af37; color: #ffd76a; border-radius: 10px; padding: 10px; font-size: 12px; margin-bottom: 10px; text-align: center; }
         
-        .table-container { max-height: 220px; overflow-y: auto; border: 1px solid #333; border-radius: 10px; }
+        .table-container { max-height: 60vh; min-height: 140px; overflow-y: auto; border: 0; border-radius: 0; }
+        .table-container.customers-container { max-height: 70vh; }
         table { width: 100%; border-collapse: collapse; text-align: right; font-size: 13px; }
         th, td { padding: 10px 8px; border-bottom: 1px solid #484747; }
         th { background: #252525; color: #d4af37; position: sticky; top: 0; }
@@ -62,8 +63,66 @@
         button.save-btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: #d4af37; color: #111; font-size: 16px; font-weight: bold; cursor: pointer; }
         button.save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         #saveMessage { text-align: center; margin-top: 10px; min-height: 20px; font-size: 13px; }
-        .telegram-btn { display: block; width: 100%; padding: 14px; border-radius: 10px; background: #2AABEE; color: #fff; font-size: 16px; font-weight: bold; text-align: center; text-decoration: none; }
-        .telegram-btn:hover { background: #1d9bdc; }
+        .support-btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; background: #2AABEE; color: #fff; font-size: 16px; font-weight: bold; text-align: center; cursor: pointer; }
+        .support-btn:hover { background: #1d9bdc; }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            z-index: 999;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            background: #1b1b1b;
+            border: 1px solid #d4af37;
+            border-radius: 18px;
+            padding: 26px 20px 22px;
+            text-align: center;
+            box-shadow: 0 12px 45px rgba(0, 0, 0, 0.6);
+        }
+        .modal-box h2 { color: #d4af37; font-size: 18px; margin-bottom: 8px; }
+        .modal-box p { color: #bbb; font-size: 13px; margin-bottom: 16px; }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 32px;
+            height: 32px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #2a2a2a;
+            color: #ddd;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .modal-close:hover { background: #3a3a3a; }
+        .support-number {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px dashed #d4af37;
+            border-radius: 10px;
+            background: #101010;
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            direction: ltr;
+            unicode-bidi: embed;
+        }
+        .copy-btn { width: 100%; padding: 13px; border: none; border-radius: 10px; background: #28a745; color: #fff; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .copy-btn:hover { background: #218838; }
+        .copy-result { margin-top: 10px; min-height: 18px; font-size: 13px; color: #76e39b; }
     </style>
 </head>
 
@@ -158,8 +217,20 @@
             <div id="saveMessage"></div>
         </section>
 
-        <a class="telegram-btn" href="https://t.me/+963948572661" target="_blank" rel="noopener noreferrer">✈️ تواصل معنا عبر تلجرام</a>
+        <button id="supportBtn" class="support-btn" type="button">💬 الدعم الفني والاشتراك</button>
     </main>
+
+    <!-- نافذة الدعم الفني -->
+    <div id="supportModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="supportModalTitle">
+        <div class="modal-box">
+            <button id="supportCloseBtn" class="modal-close" type="button" aria-label="إغلاق">×</button>
+            <h2 id="supportModalTitle">الدعم الفني والاشتراك</h2>
+            <p>للاشتراك أو طلب المساعدة، تواصل معنا على الرقم التالي:</p>
+            <span id="supportNumber" class="support-number" dir="ltr">+963 948 572 661</span>
+            <button id="copyNumberBtn" class="copy-btn" type="button">📋 نسخ الرقم</button>
+            <div id="copyResult" class="copy-result"></div>
+        </div>
+    </div>
 
     <script>
         // ---- بوابة الدخول: لا تفتح الصفحة بدون تسجيل دخول من index.html ----
@@ -877,6 +948,78 @@
             offlineMode = false;
             await flushQueue();
             await loadData();
+        })();
+        // ---- نافذة الدعم الفني والاشتراك ----
+        (function () {
+            var supportBtn = document.getElementById("supportBtn");
+            var modal = document.getElementById("supportModal");
+            var closeBtn = document.getElementById("supportCloseBtn");
+            var copyBtn = document.getElementById("copyNumberBtn");
+            var numberEl = document.getElementById("supportNumber");
+            var resultEl = document.getElementById("copyResult");
+
+            function openModal() {
+                resultEl.textContent = "";
+                modal.classList.add("open");
+            }
+
+            function closeModal() {
+                modal.classList.remove("open");
+            }
+
+            function copyFallback(text) {
+                try {
+                    var area = document.createElement("textarea");
+                    area.value = text;
+                    area.setAttribute("readonly", "");
+                    area.style.position = "fixed";
+                    area.style.top = "-1000px";
+                    area.style.opacity = "0";
+                    document.body.appendChild(area);
+                    area.select();
+                    area.setSelectionRange(0, text.length);
+                    var ok = document.execCommand("copy");
+                    document.body.removeChild(area);
+                    return ok;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            function showCopyResult(ok) {
+                if (ok) {
+                    resultEl.style.color = "#76e39b";
+                    resultEl.textContent = "تم نسخ الرقم ✅";
+                } else {
+                    resultEl.style.color = "#ffd76a";
+                    resultEl.textContent = "تعذر النسخ تلقائياً، حدد الرقم وانسخه يدوياً.";
+                }
+            }
+
+            supportBtn.addEventListener("click", openModal);
+            closeBtn.addEventListener("click", closeModal);
+
+            modal.addEventListener("click", function (event) {
+                if (event.target === modal) closeModal();
+            });
+
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape") closeModal();
+            });
+
+            copyBtn.addEventListener("click", function () {
+                var text = (numberEl.textContent || "").replace(/[^\d+]/g, "");
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(function () {
+                        showCopyResult(true);
+                    }).catch(function () {
+                        showCopyResult(copyFallback(text));
+                    });
+                } else {
+                    showCopyResult(copyFallback(text));
+                }
+            });
         })();
 
     </script>
