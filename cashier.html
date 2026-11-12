@@ -43,6 +43,8 @@
         .success { margin-top: 10px; color: #76e39b; font-size: 15px; text-align: center; }
         .project { color: #d4af37; font-weight: bold; text-align: center; margin-bottom: 15px; }
         .back-link { display: inline-block; margin-top: 18px; color: #ddd; background: #333; border: 1px solid #444; border-radius: 8px; padding: 7px 11px; text-decoration: none; font-size: 12px; }
+        .stop-link { display: block; margin: -4px 0 14px; color: #ff9b9b; font-size: 13px; text-decoration: underline; }
+        .camera-hint { color: #ffd76a; background: #4a3b00; border: 1px solid #d4af37; border-radius: 10px; padding: 10px; font-size: 12px; margin-bottom: 12px; text-align: center; line-height: 1.7; }
     </style>
 </head>
 
@@ -53,17 +55,21 @@
         <h1>لوحة الكاشير</h1>
         <p class="description">امسح QR العميل للوصول إلى بطاقته.</p>
 
-        <!-- الكاميرا -->
-        <button id="scanButton" type="button">📷 مسح بالكاميرا</button>
-        <button id="stopScanButton" type="button" style="display:none;background:#8b2d2d;color:#fff;">⏹ إيقاف الكاميرا</button>
+        <!-- زر المسح (الوحيد) -->
+        <button id="scanButton" type="button">📷 مسح QR بالكاميرا</button>
         <div id="reader"></div>
+        <a id="stopScanButton" class="stop-link" href="#" style="display:none;">إيقاف الكاميرا</a>
 
-        <!-- قراءة QR من كاميرا الجهاز (تعمل داخل التطبيق وبدون أذونات) -->
-        <button id="imageButton" type="button">📷 تصوير QR بالكاميرا</button>
-        <button id="galleryButton" type="button" style="background:#333;color:#fff;">🖼 اختيار صورة من المعرض</button>
-        <input type="file" id="qrImage" accept="image/*" capture="environment" style="display:none;">
+        <div id="cameraHint" class="camera-hint" style="display:none;"></div>
 
-        <div id="cameraHint" style="display:none;color:#ffd76a;background:#4a3b00;border:1px solid #d4af37;border-radius:10px;padding:10px;font-size:12px;margin-bottom:12px;text-align:center;"></div>
+        <!-- حقل مخفي: يفتح كاميرا الجهاز (بدون صلاحيات) -->
+        <input
+            type="file"
+            id="qrImage"
+            accept="image/*"
+            capture
+            style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;"
+        >
 
         <div id="qrFileReader" style="display:none;"></div>
 
@@ -150,8 +156,6 @@
         const searchButton = document.getElementById("searchButton");
         const scanButton = document.getElementById("scanButton");
         const stopScanButton = document.getElementById("stopScanButton");
-        const imageButton = document.getElementById("imageButton");
-        const galleryButton = document.getElementById("galleryButton");
         const cameraHint = document.getElementById("cameraHint");
         const qrImage = document.getElementById("qrImage");
         const qrFileReader = document.getElementById("qrFileReader");
@@ -164,10 +168,15 @@
         let scannerStarting = false;
 
         // داخل تطبيقات الويب فيو (appcreator24) لا تعمل الكاميرا المباشرة،
-        // لذلك يتحول زر المسح تلقائياً إلى كاميرا الجهاز.
+        // لذلك نفتح كاميرا الجهاز من حقل الصورة.
         function isEmbeddedWebView() {
             var ua = navigator.userAgent || "";
-            return /;\s*wv\)/.test(ua) || /appcreator/i.test(ua) || /FBAN|FBAV|Instagram/.test(ua);
+            if (/;\s*wv\)/i.test(ua)) return true;          // WebView قياسي
+            if (/appcreator/i.test(ua)) return true;
+            if (/FBAN|FBAV|Instagram|Line\//i.test(ua)) return true;
+            // علامة WebView: وجود Version/x مع Android وبدون Chrome/كامل
+            if (/Android/i.test(ua) && /Version\/\d/i.test(ua)) return true;
+            return false;
         }
 
         const directCameraBlocked =
@@ -186,16 +195,52 @@
             stopScanButton.style.display = active ? "block" : "none";
         }
 
-        // فتح كاميرا الجهاز عبر حقل الصورة:
-        // هذه الطريقة تعمل داخل تطبيق appcreator24 وبدون صلاحية كاميرا للويب فيو.
+        // فتح كاميرا الجهاز عبر حقل الصورة.
+        // ملاحظة: الخاصية capture تُكتب بدون قيمة (capture) لأن هذه الصيغة
+        // هي الأكثر توافقاً مع WebView على أندرويد.
+        let cameraOpenedAt = 0;
+
         function openDeviceCamera() {
+            cameraOpenedAt = Date.now();
+
             try {
-                qrImage.setAttribute("capture", "environment");
+                if (qrImage.getAttribute("capture") === null) {
+                    qrImage.setAttribute("capture", "");
+                }
             } catch (e) {}
+
             try {
                 qrImage.click();
-            } catch (e) {}
+            } catch (e) {
+                showCameraHelp();
+            }
         }
+
+        function showCameraHelp() {
+            var mode = isEmbeddedWebView() ? "داخل التطبيق" : "في المتصفح";
+            cameraHint.innerHTML =
+                "إذا فُتح معرض الصور بدل الكاميرا: اضغط أيقونة الكاميرا 📷 داخل شاشة المعرض، " +
+                "أو صوّر رمز QR بكاميرا الهاتف ثم اختر الصورة من المعرض." +
+                "<br><span style='color:#c9b26a;font-size:11px;'>(" +
+                mode +
+                " — كاميرا الويب غير متاحة)</span>" +
+                "<br><a href='" + location.href + "' target='_blank' rel='noopener' " +
+                "style='display:inline-block;margin-top:8px;color:#d4af37;font-weight:bold;'>" +
+                "فتح المسح في متصفح كروم ↗</a>";
+            cameraHint.style.display = "block";
+        }
+
+        // عند العودة من شاشة التصوير بدون اختيار صورة نعرض الإرشاد
+        window.addEventListener("focus", function () {
+            if (!cameraOpenedAt) return;
+            var started = cameraOpenedAt;
+            window.setTimeout(function () {
+                if (started !== cameraOpenedAt) return;
+                if (qrImage.files && qrImage.files.length > 0) return;
+                if (Date.now() - started > 120000) return;
+                showCameraHelp();
+            }, 1200);
+        });
 
         function ensureHtml5Qrcode() {
             if (typeof Html5Qrcode !== "undefined") {
@@ -539,7 +584,7 @@
 
             setCameraUi(false);
             scanButton.disabled = false;
-            scanButton.textContent = directCameraBlocked ? "📷 تصوير QR بالكاميرا" : "📷 مسح بالكاميرا";
+            scanButton.textContent = "📷 مسح QR بالكاميرا";
         }
 
         // =================================================
@@ -646,11 +691,9 @@
                 if (String(error && error.message) === "library") {
                     showError("تعذر تحميل مكتبة قارئ QR. تحقق من الإنترنت ثم أعد المحاولة.");
                 } else {
-                    // الكاميرا المباشرة ممنوعة داخل التطبيق ⇒ نستخدم كاميرا الجهاز
-                    cameraHint.textContent =
-                        "الكاميرا المباشرة غير متاحة هنا، لذا سيتم فتح كاميرا الجهاز. صوّر رمز QR ثم اختر «استخدام الصورة».";
-                    cameraHint.style.display = "block";
-                    showError("استخدم زر «📷 تصوير QR بالكاميرا» إذا لم تُفتح الكاميرا تلقائياً.");
+                    // الكاميرا المباشرة ممنوعة هنا ⇒ ننتقل لكاميرا الجهاز
+                    showError("");
+                    showCameraHelp();
                     openDeviceCamera();
                 }
             } finally {
@@ -658,20 +701,23 @@
 
                 if (!scanning) {
                     scanButton.disabled = false;
-                    scanButton.textContent = directCameraBlocked ? "📷 تصوير QR بالكاميرا" : "📷 مسح بالكاميرا";
+                    scanButton.textContent = "📷 مسح QR بالكاميرا";
                 }
             }
         }
 
-        scanButton.onclick = directCameraBlocked ? openDeviceCamera : startScanner;
-        stopScanButton.onclick = stopScanner;
+        scanButton.onclick = function () {
+            if (directCameraBlocked) {
+                openDeviceCamera();
+                return;
+            }
+            startScanner();
+        };
 
-        if (directCameraBlocked) {
-            scanButton.textContent = "📷 تصوير QR بالكاميرا";
-            cameraHint.textContent =
-                "داخل التطبيق تُستخدم كاميرا الجهاز مباشرة: صوّر رمز QR ثم اختر «استخدام الصورة».";
-            cameraHint.style.display = "block";
-        }
+        stopScanButton.onclick = function (event) {
+            event.preventDefault();
+            stopScanner();
+        };
 
         // إيقاف الكاميرا عند مغادرة الصفحة
         window.addEventListener("pagehide", function () {
@@ -725,20 +771,14 @@
             }
         }
 
-        imageButton.onclick = function () {
-            openDeviceCamera();
-        };
-
-        galleryButton.onclick = function () {
-            try { qrImage.removeAttribute("capture"); } catch (e) {}
-            qrImage.click();
-        };
-
         qrImage.onchange = function (event) {
             const file = event.target.files[0];
+            cameraOpenedAt = 0;
             qrImage.value = "";
-            if (file) cameraHint.style.display = "none";
-            scanImageFile(file);
+            if (file) {
+                cameraHint.style.display = "none";
+                scanImageFile(file);
+            }
         };
 
         // التحقق من رمز الكاشير على السيرفر قبل بدء العمل
