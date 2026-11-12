@@ -58,9 +58,12 @@
         <button id="stopScanButton" type="button" style="display:none;background:#8b2d2d;color:#fff;">⏹ إيقاف الكاميرا</button>
         <div id="reader"></div>
 
-        <!-- صورة QR -->
-        <button id="imageButton" type="button">🖼 اختيار صورة QR</button>
-        <input type="file" id="qrImage" accept="image/*" style="display:none;">
+        <!-- قراءة QR من كاميرا الجهاز (تعمل داخل التطبيق وبدون أذونات) -->
+        <button id="imageButton" type="button">📷 تصوير QR بالكاميرا</button>
+        <button id="galleryButton" type="button" style="background:#333;color:#fff;">🖼 اختيار صورة من المعرض</button>
+        <input type="file" id="qrImage" accept="image/*" capture="environment" style="display:none;">
+
+        <div id="cameraHint" style="display:none;color:#ffd76a;background:#4a3b00;border:1px solid #d4af37;border-radius:10px;padding:10px;font-size:12px;margin-bottom:12px;text-align:center;"></div>
 
         <div id="qrFileReader" style="display:none;"></div>
 
@@ -148,6 +151,8 @@
         const scanButton = document.getElementById("scanButton");
         const stopScanButton = document.getElementById("stopScanButton");
         const imageButton = document.getElementById("imageButton");
+        const galleryButton = document.getElementById("galleryButton");
+        const cameraHint = document.getElementById("cameraHint");
         const qrImage = document.getElementById("qrImage");
         const qrFileReader = document.getElementById("qrFileReader");
         const reader = document.getElementById("reader");
@@ -158,6 +163,19 @@
         let scanning = false;
         let scannerStarting = false;
 
+        // داخل تطبيقات الويب فيو (appcreator24) لا تعمل الكاميرا المباشرة،
+        // لذلك يتحول زر المسح تلقائياً إلى كاميرا الجهاز.
+        function isEmbeddedWebView() {
+            var ua = navigator.userAgent || "";
+            return /;\s*wv\)/.test(ua) || /appcreator/i.test(ua) || /FBAN|FBAV|Instagram/.test(ua);
+        }
+
+        const directCameraBlocked =
+            !window.isSecureContext ||
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia ||
+            isEmbeddedWebView();
+
         // =================================================
         // أدوات الكاميرا
         // =================================================
@@ -166,6 +184,17 @@
             reader.style.display = active ? "block" : "none";
             scanButton.style.display = active ? "none" : "block";
             stopScanButton.style.display = active ? "block" : "none";
+        }
+
+        // فتح كاميرا الجهاز عبر حقل الصورة:
+        // هذه الطريقة تعمل داخل تطبيق appcreator24 وبدون صلاحية كاميرا للويب فيو.
+        function openDeviceCamera() {
+            try {
+                qrImage.setAttribute("capture", "environment");
+            } catch (e) {}
+            try {
+                qrImage.click();
+            } catch (e) {}
         }
 
         function ensureHtml5Qrcode() {
@@ -510,7 +539,7 @@
 
             setCameraUi(false);
             scanButton.disabled = false;
-            scanButton.textContent = "📷 مسح بالكاميرا";
+            scanButton.textContent = directCameraBlocked ? "📷 تصوير QR بالكاميرا" : "📷 مسح بالكاميرا";
         }
 
         // =================================================
@@ -554,6 +583,7 @@
                 const onScan = async function (decodedText) {
                     if (!scanning) return;
                     await stopScanner();
+                    cameraHint.style.display = "none";
                     memberIDInput.value = decodedText;
                     findCustomer(decodedText);
                 };
@@ -616,20 +646,32 @@
                 if (String(error && error.message) === "library") {
                     showError("تعذر تحميل مكتبة قارئ QR. تحقق من الإنترنت ثم أعد المحاولة.");
                 } else {
-                    showError("تعذر فتح الكاميرا. تأكد من إعطاء صلاحية الكاميرا.");
+                    // الكاميرا المباشرة ممنوعة داخل التطبيق ⇒ نستخدم كاميرا الجهاز
+                    cameraHint.textContent =
+                        "الكاميرا المباشرة غير متاحة هنا، لذا سيتم فتح كاميرا الجهاز. صوّر رمز QR ثم اختر «استخدام الصورة».";
+                    cameraHint.style.display = "block";
+                    showError("استخدم زر «📷 تصوير QR بالكاميرا» إذا لم تُفتح الكاميرا تلقائياً.");
+                    openDeviceCamera();
                 }
             } finally {
                 scannerStarting = false;
 
                 if (!scanning) {
                     scanButton.disabled = false;
-                    scanButton.textContent = "📷 مسح بالكاميرا";
+                    scanButton.textContent = directCameraBlocked ? "📷 تصوير QR بالكاميرا" : "📷 مسح بالكاميرا";
                 }
             }
         }
 
-        scanButton.onclick = startScanner;
+        scanButton.onclick = directCameraBlocked ? openDeviceCamera : startScanner;
         stopScanButton.onclick = stopScanner;
+
+        if (directCameraBlocked) {
+            scanButton.textContent = "📷 تصوير QR بالكاميرا";
+            cameraHint.textContent =
+                "داخل التطبيق تُستخدم كاميرا الجهاز مباشرة: صوّر رمز QR ثم اختر «استخدام الصورة».";
+            cameraHint.style.display = "block";
+        }
 
         // إيقاف الكاميرا عند مغادرة الصفحة
         window.addEventListener("pagehide", function () {
@@ -684,12 +726,18 @@
         }
 
         imageButton.onclick = function () {
+            openDeviceCamera();
+        };
+
+        galleryButton.onclick = function () {
+            try { qrImage.removeAttribute("capture"); } catch (e) {}
             qrImage.click();
         };
 
         qrImage.onchange = function (event) {
             const file = event.target.files[0];
             qrImage.value = "";
+            if (file) cameraHint.style.display = "none";
             scanImageFile(file);
         };
 
