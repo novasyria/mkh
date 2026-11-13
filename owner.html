@@ -75,6 +75,7 @@
         .settings label { display: block; color: #ccc; margin-bottom: 6px; font-size: 13px; }
         .settings input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #333; border-radius: 10px; background: #101010; color: white; font-size: 15px; outline: none; }
         .settings input:focus { border-color: #d4af37; }
+        .settings-hint { color: #9a9a9a; font-size: 12px; line-height: 1.7; background: #111; border: 1px dashed #333; border-radius: 10px; padding: 10px 12px; margin: -4px 0 16px; text-align: right; }
 
         button.save-btn { width: 100%; padding: 14px; border: none; border-radius: 10px; background: #d4af37; color: #111; font-size: 16px; font-weight: bold; cursor: pointer; }
         button.save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -238,6 +239,9 @@
 
             <label>دورة الأيام (0 = بدون تصفير النقاط)</label>
             <input type="number" id="pointsCycleDays" min="0" max="3650" value="0">
+            <div class="settings-hint">
+                مثال: 40 نقطة للمكافأة + 10 نقاط للزيارة + 7 أيام ⇒ يجب جمع 40 نقطة خلال أسبوع، وإلا تُصفَّر النقاط. وبعد استخدام المكافأة تبدأ الدورة من جديد. تغيير عدد الأيام يبدأ دورة جديدة من الآن لكل العملاء (بدون تصفير نقاطهم).
+            </div>
 
             <label>اسم المكافأة (اختياري)</label>
             <input type="text" id="rewardName" value="خصم 10%">
