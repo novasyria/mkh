@@ -62,8 +62,12 @@
         <h1>لوحة الكاشير</h1>
         <p class="description">امسح QR العميل للوصول إلى بطاقته.</p>
 
-        <!-- زر المسح (الوحيد) -->
+        <!-- زر المسح -->
         <button id="scanButton" type="button">📷 مسح QR بالكاميرا</button>
+        <button id="galleryButton" type="button">🖼️ اختيار صورة من المعرض</button>
+        <div style="color:#888;font-size:12px;margin:-2px 0 12px;line-height:1.6;">
+            امسح الباركود بالكاميرا مباشرة، أو اختر صورة الباركود من معرض هاتفك.
+        </div>
         <div id="reader"></div>
         <a id="stopScanButton" class="stop-link" href="#" style="display:none;">إيقاف الكاميرا</a>
 
@@ -75,6 +79,14 @@
             id="qrImage"
             accept="image/*"
             capture
+            style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;"
+        >
+
+        <!-- حقل مخفي: اختيار صورة من المعرض (بدون capture) -->
+        <input
+            type="file"
+            id="qrGallery"
+            accept="image/*"
             style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;"
         >
 
@@ -165,6 +177,8 @@
         const stopScanButton = document.getElementById("stopScanButton");
         const cameraHint = document.getElementById("cameraHint");
         const qrImage = document.getElementById("qrImage");
+        const qrGallery = document.getElementById("qrGallery");
+        const galleryButton = document.getElementById("galleryButton");
         const qrFileReader = document.getElementById("qrFileReader");
         const reader = document.getElementById("reader");
         const customerResult = document.getElementById("customerResult");
@@ -290,6 +304,17 @@
             customerResult.innerHTML = '<div class="error">' + esc(message) + '</div>';
         }
 
+        // رسالة داخل بطاقة العميل (لا تمسح الأزرار)
+        function setActionMessage(message, ok) {
+            const el = document.getElementById("actionMessage");
+            if (!el) {
+                if (message) showError(message);
+                return;
+            }
+            el.className = ok ? "success" : "error";
+            el.textContent = message || "";
+        }
+
         // =================================================
         // تحليل QR
         // =================================================
@@ -388,46 +413,48 @@
             // إعدادات السيرفر مع قيم افتراضية آمنة
             settings = {
                 pointsPerVisit: Number(settings.pointsPerVisit) || 10,
-                rewardPoints: Number(settings.rewardPoints) || 100,
+                rewardPoints: Number(settings.rewardPoints) || 40,
                 rewardName: settings.rewardName || "خصم 10%",
-                periodDays: Number(settings.periodDays) || 30,
-                visitTarget: Number(settings.visitTarget) || 4
+                pointsCycleDays: Number(settings.pointsCycleDays) || 0
             };
             const visits = Number(customer.visits || 0);
             const points = Number(customer.points || 0);
-            const periodVisits = Number(customer.period_visits || 0);
-            const target = settings.visitTarget;
+            const rewardPoints = settings.rewardPoints;
+            const cycleDays = settings.pointsCycleDays;
 
-            // التحقق من انتهاء المدة
-            let periodOK = true;
-            if (customer.period_start) {
-                const start = new Date(customer.period_start);
-                const now = new Date();
-                const diffDays = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-                if (diffDays >= settings.periodDays) {
-                    periodOK = false;
+            // عداد النقاط للوصول إلى المكافأة
+            const progress = Math.min(points, rewardPoints);
+            const progressPercent = rewardPoints > 0 ? Math.round((progress / rewardPoints) * 100) : 0;
+
+            // الأيام المتبقية في دورة النقاط (0 = بدون دورة)
+            let cycleHTML = "";
+            if (cycleDays > 0) {
+                let daysLeft = cycleDays;
+                if (customer.period_start) {
+                    const start = new Date(customer.period_start);
+                    const elapsed = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+                    daysLeft = Math.max(0, cycleDays - elapsed);
                 }
+                cycleHTML =
+                    '<div style="color:#ffd76a;font-size:12px;margin-top:8px;">' +
+                    '⏳ متبقي ' + daysLeft + ' يوم على تصفير النقاط (دورة ' + cycleDays + ' يوم)' +
+                    '</div>';
             }
 
-            // إظهار عداد الزيارات
-            const progress = Math.min(periodVisits, target);
-            const progressPercent = target > 0 ? Math.round((progress / target) * 100) : 0;
             const progressHTML =
                 '<div style="margin-top:12px;background:#202020;border-radius:10px;padding:10px;">' +
-                '<div style="color:#d4af37;font-weight:bold;margin-bottom:8px;">🎯 عداد الزيارات للخصم</div>' +
+                '<div style="color:#d4af37;font-weight:bold;margin-bottom:8px;">🎯 نقاط المكافأة</div>' +
                 '<div style="display:flex;justify-content:space-between;color:#ddd;font-size:13px;margin-bottom:6px;">' +
-                '<span>الزيارات الحالية: ' + periodVisits + ' / ' + target + '</span>' +
-                '<span>المدة: ' + settings.periodDays + ' يوم</span>' +
+                '<span>النقاط الحالية: ' + points + ' / ' + rewardPoints + '</span>' +
+                '<span>' + esc(settings.rewardName) + '</span>' +
                 '</div>' +
                 '<div style="background:#111;border-radius:8px;height:14px;overflow:hidden;">' +
-                '<div style="background:' + (progress >= target ? '#28a745' : '#d4af37') + ';height:100%;width:' + progressPercent + '%;border-radius:8px;transition:width .3s;"></div>' +
+                '<div style="background:' + (progress >= rewardPoints ? '#28a745' : '#d4af37') + ';height:100%;width:' + progressPercent + '%;border-radius:8px;transition:width .3s;"></div>' +
                 '</div>' +
-                (periodOK ? '' : '<div style="color:#ff7777;font-size:12px;margin-top:6px;">⏰ انتهت المدة! العداد بيبدأ من جديد لزيارة هالعميل</div>') +
+                cycleHTML +
                 '</div>';
 
-            const hasPointsReward = points >= settings.rewardPoints;
-            const hasVisitReward = periodVisits >= target && target > 0 && periodOK;
-            const hasReward = hasPointsReward || hasVisitReward;
+            const hasReward = points >= rewardPoints;
             const rewardHTML = hasReward
                 ? '<div class="reward">' +
                     '🎉 العميل يستحق مكافأة!' +
@@ -459,6 +486,7 @@
                 '<button type="button" style="margin-top:10px;" id="addVisitButton">' +
                 'تسجيل زيارة' +
                 '</button>' +
+                '<div id="actionMessage"></div>' +
                 '</div>';
 
             // =========================================
@@ -493,23 +521,29 @@
                             logoutAndRedirect();
                             return;
                         }
+
+                        this.disabled = false;
+                        this.innerText = "تسجيل زيارة";
+
                         if (payload.error === "points_limit" || payload.error === "visits_limit") {
-                            showError("تعذر تحديث البيانات بسبب تجاوز الحد المسموح.");
+                            setActionMessage("تعذر تحديث البيانات بسبب تجاوز الحد المسموح.", false);
                             return;
                         }
                         if (payload.error === "not_found") {
-                            showError("لم يتم العثور على العميل.");
+                            setActionMessage("لم يتم العثور على العميل.", false);
                             return;
                         }
-                        showError("تعذر تحديث البيانات. حاول مرة أخرى.");
+                        setActionMessage("تعذر تحديث البيانات. حاول مرة أخرى.", false);
                         return;
                     }
 
                     await showCustomer(payload.customer, payload.settings);
-                    customerResult.innerHTML += '<div class="success">تم تسجيل الزيارة بنجاح ✅</div>';
+                    setActionMessage("تم تسجيل الزيارة بنجاح ✅", true);
                 } catch (error) {
                     console.error(error);
-                    showError("تعذر تحديث البيانات. حاول مرة أخرى.");
+                    this.disabled = false;
+                    this.innerText = "تسجيل زيارة";
+                    setActionMessage("تعذر تحديث البيانات. حاول مرة أخرى.", false);
                 }
             };// =========================================
             // استخدام المكافأة
@@ -536,19 +570,25 @@
                                 logoutAndRedirect();
                                 return;
                             }
+
+                            this.disabled = false;
+                            this.innerText = "استخدام المكافأة";
+
                             if (payload.error === "no_reward") {
-                                showError("لا توجد مكافأة مستحقة حالياً.");
+                                setActionMessage("لا توجد مكافأة مستحقة حالياً.", false);
                                 return;
                             }
-                            showError("تعذر استخدام المكافأة.");
+                            setActionMessage("تعذر استخدام المكافأة.", false);
                             return;
                         }
 
                         await showCustomer(payload.customer, payload.settings);
-                        customerResult.innerHTML += '<div class="success">تم استخدام المكافأة بنجاح ✅</div>';
+                        setActionMessage("تم استخدام المكافأة بنجاح ✅", true);
                     } catch (error) {
                         console.error(error);
-                        showError("تعذر استخدام المكافأة.");
+                        this.disabled = false;
+                        this.innerText = "استخدام المكافأة";
+                        setActionMessage("تعذر استخدام المكافأة.", false);
                     }
                 };
             }
@@ -782,6 +822,23 @@
             const file = event.target.files[0];
             cameraOpenedAt = 0;
             qrImage.value = "";
+            if (file) {
+                cameraHint.style.display = "none";
+                scanImageFile(file);
+            }
+        };
+
+        // اختيار صورة QR من معرض الصور (بدون فتح الكاميرا)
+        galleryButton.onclick = function () {
+            cameraHint.style.display = "none";
+            try {
+                qrGallery.click();
+            } catch (e) {}
+        };
+
+        qrGallery.onchange = function (event) {
+            const file = event.target.files[0];
+            qrGallery.value = "";
             if (file) {
                 cameraHint.style.display = "none";
                 scanImageFile(file);

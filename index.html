@@ -350,15 +350,39 @@
     ></div>
 
 
+    <!--
+        رابط الإدارة العامة: مخفي افتراضياً حتى لا يفتح صفحة غير موجودة.
+        عند رفع لوحة الإدارة على رابط مستقل، املأ ADMIN_PANEL_URL بالأسفل.
+    -->
     <a
-        class="admin-link"
-        href="admin.html"
+        class="admin-link hidden"
+        id="adminPanelLink"
+        href="#"
     >
         الإدارة العامة
     </a>
 
 
 </div>
+
+
+<script>
+    // =====================================
+    // رابط الإدارة العامة (اختياري)
+    // =====================================
+    // اتركه فارغاً "" = الرابط مخفي بالكامل، ولا يوجد أي طلب على admin.html.
+    // أو ضع رابط اللوحة المستقلة، مثل:
+    // "https://novasyria.github.io/mkh-admin/"
+    var ADMIN_PANEL_URL = "";
+
+    (function () {
+        if (!ADMIN_PANEL_URL) return;
+        var link = document.getElementById("adminPanelLink");
+        if (!link) return;
+        link.href = ADMIN_PANEL_URL;
+        link.classList.remove("hidden");
+    })();
+</script>
 
 
 <script>

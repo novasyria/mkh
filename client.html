@@ -436,7 +436,7 @@
                 margin-bottom:10px;
                 "
             >
-                🎯 عداد الزيارات للخصم
+                🎯 نقاط المكافأة
             </div>
 
             <div
@@ -1119,19 +1119,19 @@ async function loadPeriodCounter(customer) {
 
     try {
 
-        const periodDays =
+        const rewardPoints =
             Number(
-                currentStore.visit_period_days || 30
+                currentStore.reward_points || 40
             );
 
-        const target =
+        const cycleDays =
             Number(
-                currentStore.visit_target || 4
+                currentStore.points_cycle_days || 0
             );
 
-        const periodVisits =
+        const points =
             Number(
-                customer.period_visits || 0
+                customer.points || 0
             );
 
 
@@ -1141,8 +1141,8 @@ async function loadPeriodCounter(customer) {
             );
 
         if (
-            !target ||
-            target <= 0
+            !rewardPoints ||
+            rewardPoints <= 0
         ) {
 
             counter.style.display =
@@ -1160,19 +1160,38 @@ async function loadPeriodCounter(customer) {
         const percent =
             Math.min(
                 Math.round(
-                    (periodVisits / target) * 100
+                    (Math.min(points, rewardPoints) / rewardPoints) * 100
                 ),
                 100
             );
 
 
-        document.getElementById(
-            "counterInfo"
-        ).textContent =
-            "الزيارات: " +
-            periodVisits +
-            " من " +
-            target;
+        const counterInfo =
+            document.getElementById(
+                "counterInfo"
+            );
+
+        if (points >= rewardPoints) {
+
+            counterInfo.textContent =
+                "🎉 وصلت إلى " +
+                rewardPoints +
+                " نقطة — اطلب مكافأتك من الكاشير (" +
+                (currentStore.reward_name || "مكافأة") +
+                ")";
+
+        } else {
+
+            counterInfo.textContent =
+                "النقاط: " +
+                points +
+                " من " +
+                rewardPoints +
+                (currentStore.reward_name
+                    ? " — " + currentStore.reward_name
+                    : "");
+
+        }
 
 
         document.getElementById(
@@ -1189,43 +1208,58 @@ async function loadPeriodCounter(customer) {
                 : "#d4af37";
 
 
-        // الأيام المتبقية
+        // الأيام المتبقية في دورة النقاط
 
-        let daysLeft =
-            periodDays;
+        const daysElement =
+            document.getElementById(
+                "counterDaysLeft"
+            );
 
-        if (
-            customer.period_start
-        ) {
+        if (cycleDays > 0) {
 
-            const start =
-                new Date(
-                    customer.period_start
-                );
+            let daysLeft =
+                cycleDays;
 
-            const elapsed =
-                Math.floor(
-                    (new Date() - start) /
-                    (1000 * 60 * 60 * 24)
-                );
+            if (
+                customer.period_start
+            ) {
 
-            daysLeft =
-                Math.max(
-                    0,
-                    periodDays - elapsed
-                );
+                const start =
+                    new Date(
+                        customer.period_start
+                    );
+
+                const elapsed =
+                    Math.floor(
+                        (new Date() - start) /
+                        (1000 * 60 * 60 * 24)
+                    );
+
+                daysLeft =
+                    Math.max(
+                        0,
+                        cycleDays - elapsed
+                    );
+
+            }
+
+            daysElement.textContent =
+                daysLeft > 0
+                    ? "⏳ متبقي " +
+                      daysLeft +
+                      " يوم على تصفير النقاط (دورة " +
+                      cycleDays +
+                      " يوم)"
+                    : "⏰ دورة النقاط انتهت — ستبدأ من جديد عند زيارتك القادمة";
+
+        } else {
+
+            daysElement.textContent =
+                "النقاط لا تُصفَّر — كل " +
+                rewardPoints +
+                " نقطة تمنحك مكافأة";
 
         }
-
-
-        document.getElementById(
-            "counterDaysLeft"
-        ).textContent =
-            daysLeft > 0
-                ? "⏳ متبقي " +
-                  daysLeft +
-                  " يوم على نهاية المدة"
-                : "⏰ المدة انتهت - عدادك هيبدأ من جديد عند الزيارة الجاية";
 
 
     } catch (error) {
