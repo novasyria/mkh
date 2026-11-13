@@ -36,12 +36,20 @@
         .stat strong { display: block; color: #d4af37; font-size: 20px; margin-bottom: 4px; }
         .stat span { color: #999; font-size: 11px; }
 
-        .marketing-subscribers, .settings { text-align: right; background: transparent; border: 0; border-top: 1px solid #262626; border-radius: 0; padding: 18px 0 0; margin-bottom: 22px; }
-        .marketing-subscribers { border-color: #262626; }
-        .marketing-subscribers h2 { color: #28a745; text-align: center; margin-bottom: 15px; font-size: 18px; }
+        .marketing-subscribers, .settings { text-align: right; background: transparent; border: 0; border-radius: 0; padding: 0; margin-bottom: 16px; }
 
-        .customers-box { text-align: right; background: transparent; border: 0; border-top: 1px solid #262626; border-radius: 0; padding: 18px 0 0; margin-bottom: 22px; }
-        .customers-box h2 { color: #d4af37; text-align: center; margin-bottom: 12px; font-size: 18px; }
+        .customers-box { text-align: right; background: transparent; border: 0; border-radius: 0; padding: 0; margin-bottom: 16px; }
+
+        .owner-panel { background: #151515; border: 1px solid #2c2c2c; border-radius: 14px; overflow: hidden; }
+        .owner-panel-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 15px 16px; font-weight: bold; color: #d4af37; font-size: 16px; user-select: none; }
+        .owner-panel-head::-webkit-details-marker { display: none; }
+        .owner-panel-head::after { content: "▼"; margin-right: auto; font-size: 11px; color: #888; transition: transform .2s; }
+        details[open] > .owner-panel-head::after { transform: rotate(180deg); }
+        .owner-panel-count { background: #d4af37; color: #111; border-radius: 999px; padding: 2px 9px; font-size: 12px; }
+        .owner-panel-body { padding: 0 14px 16px; }
+        #offersPanel .owner-panel-head { color: #28a745; }
+        #offersPanel .owner-panel-count { background: #28a745; color: #fff; }
+
         .customer-search { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #333; border-radius: 10px; background: #101010; color: #fff; font-size: 14px; outline: none; }
         .customer-search:focus { border-color: #d4af37; }
         .customers-container { max-height: 60vh; min-height: 180px; }
@@ -62,6 +70,7 @@
 
         .btn-copy-phone { background: #444; color: white; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-right: 4px; }
 
+        .settings { border-top: 1px solid #262626; padding-top: 18px; margin-top: 22px; }
         .settings h2 { color: #d4af37; text-align: center; margin-bottom: 18px; font-size: 18px; }
         .settings label { display: block; color: #ccc; margin-bottom: 6px; font-size: 13px; }
         .settings input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #333; border-radius: 10px; background: #101010; color: white; font-size: 15px; outline: none; }
@@ -154,71 +163,84 @@
         </section>
 
         <section class="customers-box">
-            <h2>العملاء 👥</h2>
+            <details class="owner-panel" id="customersPanel">
+                <summary class="owner-panel-head">
+                    <span>👥 العملاء</span>
+                    <span class="owner-panel-count" id="customersPanelCount">0</span>
+                </summary>
+                <div class="owner-panel-body">
 
-            <div id="netStatus" class="net-status" style="display:none;"></div>
+                    <div id="netStatus" class="net-status" style="display:none;"></div>
 
-            <input
-                type="text"
-                id="customerSearch"
-                class="customer-search"
-                placeholder="بحث بالاسم أو رقم العضوية"
-                autocomplete="off"
-            >
+                    <input
+                        type="text"
+                        id="customerSearch"
+                        class="customer-search"
+                        placeholder="بحث بالاسم أو رقم العضوية"
+                        autocomplete="off"
+                    >
 
-            <div class="table-container customers-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>الاسم</th>
-                            <th>العضوية</th>
-                            <th>النقاط</th>
-                            <th>الزيارات</th>
-                            <th>الإجراءات</th>
-                        </tr>
-                    </thead>
-                    <tbody id="customersTable">
-                        <tr><td colspan="5" style="text-align: center; color: #888;">جاري التحميل...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+                    <div class="table-container customers-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>الاسم</th>
+                                    <th>العضوية</th>
+                                    <th>النقاط</th>
+                                    <th>الزيارات</th>
+                                    <th>الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customersTable">
+                                <tr><td colspan="5" style="text-align: center; color: #888;">جاري التحميل...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </details>
         </section>
 
         <section class="marketing-subscribers">
-            <h2>قائمة المشتركين بالعروض 📢</h2>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>الاسم</th>
-                            <th>الهاتف</th>
-                            <th>الحالة</th>
-                            <th>الإجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody id="subscribersTable">
-                        <tr><td colspan="4" style="text-align: center; color: #888;">جاري التحميل...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            <details class="owner-panel" id="offersPanel">
+                <summary class="owner-panel-head">
+                    <span>📢 العروض والمشتركون</span>
+                    <span class="owner-panel-count" id="offersPanelCount">0</span>
+                </summary>
+                <div class="owner-panel-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>الاسم</th>
+                                    <th>الهاتف</th>
+                                    <th>الحالة</th>
+                                    <th>الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subscribersTable">
+                                <tr><td colspan="4" style="text-align: center; color: #888;">جاري التحميل...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
         </section>
 
         <section class="settings">
             <h2>إعدادات الولاء</h2>
-            <label>عدد النقاط لكل زيارة</label>
-            <input type="number" id="pointsPerVisit" min="1" value="10">
+
+            <label>عدد النقاط الافتراضي لكل زيارة</label>
+            <input type="number" id="pointsPerVisit" min="1" max="100000" value="10">
 
             <label>عدد النقاط للحصول على المكافأة</label>
-            <input type="number" id="rewardPoints" min="1" value="100">
+            <input type="number" id="rewardPoints" min="1" max="1000000" value="40">
 
-            <label>اسم المكافأة</label>
+            <label>دورة الأيام (0 = بدون تصفير النقاط)</label>
+            <input type="number" id="pointsCycleDays" min="0" max="3650" value="0">
+
+            <label>اسم المكافأة (اختياري)</label>
             <input type="text" id="rewardName" value="خصم 10%">
-
-            <label>مدة الدورة بالأيام (بيتصفر العداد بعدها)</label>
-            <input type="number" id="visitPeriodDays" min="1" value="30">
-
-            <label>عدد الزيارات المطلوبة للحصول على المكافأة</label>
-            <input type="number" id="visitTarget" min="1" value="4">
 
             <button id="saveSettingsBtn" class="save-btn">حفظ الإعدادات</button>
             <div id="saveMessage"></div>
@@ -385,8 +407,7 @@
                     copy.store.points_per_visit = op.points_per_visit;
                     copy.store.reward_points = op.reward_points;
                     copy.store.reward_name = op.reward_name;
-                    copy.store.visit_period_days = op.visit_period_days;
-                    copy.store.visit_target = op.visit_target;
+                    copy.store.points_cycle_days = op.points_cycle_days;
                 }
             });
 
@@ -416,10 +437,12 @@
             document.getElementById("subscriptionAmountView").textContent =
                 data.subscription_amount == null ? "-" : Number(data.subscription_amount).toLocaleString("ar");
             document.getElementById("pointsPerVisit").value = data.points_per_visit || 10;
-            document.getElementById("rewardPoints").value = data.reward_points || 100;
+            document.getElementById("rewardPoints").value = data.reward_points || 40;
+            document.getElementById("pointsCycleDays").value =
+                (data.points_cycle_days === 0 || data.points_cycle_days)
+                    ? data.points_cycle_days
+                    : 0;
             document.getElementById("rewardName").value = data.reward_name || "خصم 10%";
-            document.getElementById("visitPeriodDays").value = data.visit_period_days || 30;
-            document.getElementById("visitTarget").value = data.visit_target || 4;
         }
 
         function formatSubscriptionDate(value) {
@@ -448,6 +471,12 @@
             document.getElementById("customersCount").textContent = customers.length;
             document.getElementById("visitsCount").textContent = totalVisits;
             document.getElementById("offersCount").textContent = offersSubscribers.length;
+
+            var custPanelCount = document.getElementById("customersPanelCount");
+            if (custPanelCount) custPanelCount.textContent = customers.length;
+
+            var offersPanelCount = document.getElementById("offersPanelCount");
+            if (offersPanelCount) offersPanelCount.textContent = offersSubscribers.length;
 
             renderCustomersTable(customers);
             renderOffersTable(offersSubscribers);
@@ -604,8 +633,7 @@
                     p_points_per_visit: op.points_per_visit,
                     p_reward_points: op.reward_points,
                     p_reward_name: op.reward_name,
-                    p_visit_period_days: op.visit_period_days,
-                    p_visit_target: op.visit_target
+                    p_points_cycle_days: op.points_cycle_days
                 });
             }
             return null;
@@ -747,23 +775,21 @@
 
             const saveBtn = this;
             const msg = document.getElementById("saveMessage");
-            const clampInt = function (id, def, max) {
+            const clampInt = function (id, def, min, max) {
                 const n = Math.floor(Number(document.getElementById(id).value));
-                return (Number.isFinite(n) && n >= 1) ? Math.min(n, max) : def;
+                return (Number.isFinite(n) && n >= min) ? Math.min(n, max) : def;
             };
-            const pVisit = clampInt("pointsPerVisit", 10, 100000);
-            const rPoints = clampInt("rewardPoints", 100, 1000000);
+            const pVisit = clampInt("pointsPerVisit", 10, 1, 100000);
+            const rPoints = clampInt("rewardPoints", 40, 1, 1000000);
+            const cycleDays = clampInt("pointsCycleDays", 0, 0, 3650);
             const rName = (document.getElementById("rewardName").value.trim() || "خصم 10%").slice(0, 60);
-            const periodDays = clampInt("visitPeriodDays", 30, 3650);
-            const target = clampInt("visitTarget", 4, 1000);
 
             const op = {
                 type: "settings",
                 points_per_visit: pVisit,
                 reward_points: rPoints,
                 reward_name: rName,
-                visit_period_days: periodDays,
-                visit_target: target
+                points_cycle_days: cycleDays
             };
 
             saveBtn.disabled = true;
@@ -779,8 +805,7 @@
                     p_points_per_visit: pVisit,
                     p_reward_points: rPoints,
                     p_reward_name: rName,
-                    p_visit_period_days: periodDays,
-                    p_visit_target: target
+                    p_points_cycle_days: cycleDays
                 });
 
                 if (error) throw error;
